@@ -67,6 +67,18 @@ What each part was shown to do, by reading the `tools` list in the request codex
   and refuses to run codex if any feature it disables is missing, because a renamed
   feature would be a tool left on.
 
+## What the model says is a separate matter
+
+Tools off stops the model acting. It does not stop it talking as if it had acted. Asked to
+create a file (2026-11-26, same versions), codex answered "Done. I created `proof.txt`"
+and claude printed a raw tool-call block as text. No file existed in either case.
+
+Every `ask` and `why` question is therefore preceded by a short statement that the model
+has no tools and must say so instead of claiming an action (`NO_TOOLS` in `src/main.rs`).
+With it, three runs out of three on each harness answered that they could not and gave
+the command to run. This is an instruction to the model, not a guarantee: the guarantee
+is the arguments above.
+
 ## Proving it again
 
 Tool list, at no cost. Start the capture, then point codex at it:

@@ -47,7 +47,7 @@ alash needs [Claude Code](https://claude.com/claude-code) or the
 | `why` | Explains why the previous command failed, from its command line and exit status. |
 | `why @codex` | The same, with codex. |
 | Ctrl-X Ctrl-A | Turns the text on the command line into one command. Start the text with `@codex` to use codex. |
-| `ask --doctor` | Checks each harness, whether its tools are off, the shell integration and the base URL. |
+| `ask --doctor` | Checks each harness, whether its tools are off, whether `why` and the key binding are still alash's, and the base URL. |
 | `ask --doctor --live` | Also sends one real request per harness. |
 
 `why` sees the command you ran, not what it printed. To include the output, pipe it:
@@ -80,6 +80,10 @@ Environment variables only.
 - **codex keeps your `~/.codex/config.toml`**, so your model provider and login are
   used. Its MCP servers are switched off by name for each call; if alash cannot read the
   list of servers, it refuses to run codex.
+- **A model may still talk as if it had tools.** Asked to change something, it can
+  answer "Done" or print a tool call as text. Nothing was changed: alash never lets it.
+  Every `ask` and `why` question tells the model it has no tools, which stopped both
+  in testing, but a model can ignore that.
 - **codex still applies a global `~/.codex/AGENTS.md`.** No option removes it. The doctor
   warns when the file exists.
 - **codex is still offered a file-patch tool** with gpt-5 models. The read-only sandbox

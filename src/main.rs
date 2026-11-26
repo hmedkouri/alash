@@ -38,6 +38,13 @@ Environment:
   ALASH_HARNESS       default harness: claude or codex
   ALASH_BASE_URL      optional base URL for claude, such as a local proxy";
 
+/// Put before every `ask` and `why` question. With its tools off a model may still answer
+/// "Done" or print a tool call as text; this tells it what it can do. See docs/tools-off.md.
+const NO_TOOLS: &str = "You have no tools in this session: you cannot run commands, read or \
+    write files, or browse. Answer in plain text only. If asked to do something, never say \
+    you did it and never write a tool call: say that you cannot, and give the command the \
+    user can run.";
+
 fn fail(msg: &str) -> ExitCode {
     eprintln!("{msg}");
     ExitCode::FAILURE
@@ -62,7 +69,7 @@ fn answer(picked: Result<(Harness, &str), String>, stdin: Stdio) -> ExitCode {
         if q.is_empty() {
             Err(USAGE.to_string())
         } else {
-            h.run(q, false, stdin)
+            h.run(&format!("{NO_TOOLS}\n\n{q}"), false, stdin)
         }
     });
     match reply {
@@ -105,7 +112,10 @@ fn why(rest: &[String]) -> ExitCode {
         return fail("There is no previous command in this shell's history.");
     }
     let question = format!(
-        "{} This {} command exited with status {status}: {command}\nExplain why it failed and give the fix.",
+        "{} This {} command exited with status {status}: {command}\n\
+         You cannot see what it printed. Answer in at most four lines: the most likely cause \
+         in one or two sentences, then the one most likely fix as a command. Do not restate \
+         the command, do not guess at its output, and do not list alternatives.",
         marker.join(" "),
         shell()
     );

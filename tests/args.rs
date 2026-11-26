@@ -66,10 +66,13 @@ fn claude_gets_exactly_the_tools_off_arguments() {
     let r = alash("claude", &["ask", "-n", "means", "what?"], &[]);
     assert!(r.out.status.success());
     assert_eq!(stdout(&r), "ls -la\n");
+    let (args, prompt) = r.args.split_once("--\n").unwrap();
     assert_eq!(
-        r.args,
-        "-p\n--model\nhaiku\n--strict-mcp-config\n--setting-sources\n\n--tools=\n--\n-n means what?\nbase=unset\n"
+        args,
+        "-p\n--model\nhaiku\n--strict-mcp-config\n--setting-sources\n\n--tools=\n"
     );
+    assert!(prompt.starts_with("You have no tools in this session"));
+    assert!(prompt.ends_with("\n\n-n means what?\nbase=unset\n"));
 }
 
 #[test]
@@ -80,14 +83,17 @@ fn codex_gets_exactly_the_tools_off_arguments() {
         &[("ALASH_CODEX_MODEL", "m1")],
     );
     assert!(r.out.status.success());
+    let (args, prompt) = r.args.split_once("--\n").unwrap();
+    assert!(prompt.starts_with("You have no tools in this session"));
+    assert!(prompt.ends_with("\n\nhello there\nbase=unset\n"));
     assert_eq!(
-        r.args,
+        args,
         "exec\n--ignore-rules\n-s\nread-only\n--ephemeral\n\
          --skip-git-repo-check\n--color\nnever\n-c\nproject_doc_max_bytes=0\n-c\n\
          web_search=disabled\n--disable\nshell_tool\n--disable\nunified_exec\n--disable\n\
          view_image\n--disable\ngoals\n--disable\nmulti_agent\n--disable\napps\n--disable\n\
          plugins\n-c\nmcp_servers.probe.enabled=false\n-c\n\
-         mcp_servers.remote_x.enabled=false\n-m\nm1\n--\nhello there\nbase=unset\n"
+         mcp_servers.remote_x.enabled=false\n-m\nm1\n"
     );
 }
 
@@ -135,12 +141,12 @@ fn environment_selects_model_harness_and_base_url() {
         "the default harness comes from ALASH_HARNESS"
     );
     assert!(
-        r.args.contains("--\ncodex is what\n"),
+        r.args.contains("\n\ncodex is what\n"),
         "a bare first word is never a marker"
     );
 
     let r = alash("env3", &["ask", "--", "@codex", "hi"], &[]);
-    assert!(r.args.starts_with("-p\n") && r.args.contains("--\n@codex hi\n"));
+    assert!(r.args.starts_with("-p\n") && r.args.contains("\n\n@codex hi\n"));
 }
 
 #[test]
@@ -152,7 +158,10 @@ fn why_sends_the_command_and_its_status() {
     );
     assert!(r.out.status.success());
     assert!(r.args.contains(
-        "This zsh command exited with status 2: ls /nope\nExplain why it failed and give the fix."
+        "\n\nThis zsh command exited with status 2: ls /nope\nYou cannot see what it printed. \
+         Answer in at most four lines: the most likely cause in one or two sentences, then \
+         the one most likely fix as a command. Do not restate the command, do not guess at \
+         its output, and do not list alternatives.\n"
     ));
     assert!(!r.args.contains("--max-turns"));
 }

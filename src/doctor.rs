@@ -128,11 +128,33 @@ fn check(h: Harness, live: bool) -> bool {
 /// Returns whether the default harness can work.
 pub fn run(live: bool) -> bool {
     say!("alash {}", env!("CARGO_PKG_VERSION"));
-    match std::env::var("ALASH_SHELL") {
-        Ok(shell) => say!("shell integration: loaded ({shell})"),
-        Err(_) => say!(
-            "shell integration: not loaded here. Add `eval \"$(alash init zsh)\"` to ~/.zshrc \
-             (or bash and ~/.bashrc)."
+    // The `ask` function reports what it found in the calling shell. Only that is
+    // repeated here: this process cannot see the shell's functions or key bindings.
+    let found = |var: &str| std::env::var(var).ok().map(|v| v == "1");
+    match (
+        std::env::var("ALASH_SHELL"),
+        found("ALASH_WHY"),
+        found("ALASH_KEY"),
+    ) {
+        (Ok(shell), Some(why), Some(key)) => {
+            say!("shell integration: called from the {shell} `ask` function");
+            if why {
+                say!("  why: is the alash function");
+            } else {
+                say!("  why: NOT the alash function (missing or redefined)");
+            }
+            if key {
+                say!("  Ctrl-X Ctrl-A: bound to the alash key binding");
+            } else {
+                say!(
+                    "  Ctrl-X Ctrl-A: NOT bound to the alash key binding (never bound, or \
+                     rebound by something loaded later)"
+                );
+            }
+        }
+        _ => say!(
+            "shell integration: not checked, because this was not called from the `ask` \
+             function. Add `eval \"$(alash init zsh)\"` to ~/.zshrc (or bash and ~/.bashrc)."
         ),
     }
     let default = match Harness::default_from_env() {
