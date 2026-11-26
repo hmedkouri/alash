@@ -1,0 +1,49 @@
+name: Release
+
+# Prebuilt binaries for people who have no Rust toolchain. Triggered by pushing a v* tag.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: taiki-e/create-gh-release-action@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  upload-assets:
+    needs: create-release
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Linux targets are musl, so the binaries are statically linked and do not
+          # inherit the runner's glibc version as a minimum requirement.
+          - target: x86_64-unknown-linux-musl
+            os: ubuntu-latest
+          - target: aarch64-unknown-linux-musl
+            os: ubuntu-latest
+          - target: aarch64-apple-darwin
+            os: macos-latest
+          - target: x86_64-apple-darwin
+            os: macos-latest
+          # Experimental: built, never run on a real Windows machine, no PowerShell
+          # integration yet.
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: taiki-e/upload-rust-binary-action@v1
+        with:
+          bin: alash
+          target: ${{ matrix.target }}
+          archive: alash-$tag-$target
+          checksum: sha256
+          token: ${{ secrets.GITHUB_TOKEN }}

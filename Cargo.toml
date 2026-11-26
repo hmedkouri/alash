@@ -1,0 +1,21 @@
+[package]
+name = "alash"
+version = "0.1.0"
+edition = "2021"
+# The oldest toolchain the tests were run on (1.85 passes). Not bisected lower, so the real
+# floor may be older. The `msrv` CI job builds on exactly this toolchain.
+rust-version = "1.85"
+description = "ask, why and a command-line key binding, answered by the AI CLI you are already logged in to, with its tools off"
+license = "MIT"
+repository = "https://github.com/hmedkouri/alash"
+homepage = "https://alash.app"
+readme = "README.md"
+keywords = ["cli", "shell", "claude", "codex", "zsh"]
+categories = ["command-line-utilities"]
+
+# No dependencies: arguments are free text parsed by hand, and the doctor's base-URL check
+# is a plain TCP connect.
+[dependencies]
+
+[profile.release]
+strip = true

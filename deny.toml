@@ -1,0 +1,45 @@
+# Policy for `cargo deny check bans advisories sources`.
+#
+# alash has no dependencies and makes no network request of its own: the harness it
+# starts does. The bans below make adding a network or async crate a deliberate, visible
+# act. If a real need appears, delete the line and say why in the commit message.
+#
+# The licence check is not run: an allow-list is maintenance for a risk a crate with no
+# dependencies does not carry.
+
+[advisories]
+version = 2
+yanked = "deny"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+
+[bans]
+multiple-versions = "allow"
+wildcards = "deny"
+deny = [
+    # HTTP and TLS clients
+    { name = "reqwest" },
+    { name = "ureq" },
+    { name = "isahc" },
+    { name = "attohttpc" },
+    { name = "curl" },
+    { name = "curl-sys" },
+    { name = "hyper" },
+    { name = "h2" },
+    { name = "rustls" },
+    { name = "native-tls" },
+    { name = "openssl" },
+    { name = "openssl-sys" },
+    # Async runtimes and raw sockets
+    { name = "tokio" },
+    { name = "async-std" },
+    { name = "mio" },
+    { name = "socket2" },
+    { name = "quinn" },
+    # DNS
+    { name = "hickory-resolver" },
+    { name = "trust-dns-resolver" },
+]
