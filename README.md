@@ -6,6 +6,8 @@ the model's tools switched off.
 
 *Alash* is "why" in Moroccan Darija.
 
+Site: [alash.app](https://alash.app)
+
 ```console
 $ ask how do I list listening ports
 $ make |& ask why does this fail
@@ -26,9 +28,11 @@ The key binding replaces what you typed with one command and stops. It never run
 alash needs [Claude Code](https://claude.com/claude-code) or the
 [Codex CLI](https://github.com/openai/codex) installed and logged in.
 
-1. Get the binary: download it from the
-   [releases page](https://github.com/hmedkouri/alash/releases) and put it on your
-   `PATH`, or run `cargo install alash`.
+1. Get the binary (needs Rust's cargo):
+
+   ```sh
+   cargo install --git https://github.com/hmedkouri/alash
+   ```
 2. Add one line to `~/.zshrc` or `~/.bashrc`:
 
    ```sh

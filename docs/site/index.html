@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>alash: your shell, your AI, no API keys</title>
+<meta name="description" content="Ask questions, understand failures and generate commands directly from your terminal, answered by the AI CLI you are already logged in to.">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%230e1110'/%3E%3Cpath d='M3 5l3 3-3 3' fill='none' stroke='%234ade80' stroke-width='1.6'/%3E%3Cpath d='M8 11.5h5' stroke='%23e8e6e1' stroke-width='1.6'/%3E%3C/svg%3E">
+<style>
+  :root {
+    --bg: #fbfaf7; --fg: #1c1b19; --muted: #5c5a55; --green: #15803d;
+    --panel: #f1efe9; --line: #dcd9d0;
+    --mono: ui-monospace, "SF Mono", "Cascadia Mono", "JetBrains Mono", Menlo, Consolas, "DejaVu Sans Mono", monospace;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0e1110; --fg: #e8e6e1; --muted: #a3a19b; --green: #4ade80;
+      --panel: #171b19; --line: #2a302d;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0; background: var(--bg); color: var(--fg);
+    font: 1.0625rem/1.6 var(--sans);
+  }
+  main { max-width: 44rem; margin: 0 auto; padding: 0 1.25rem 4rem; }
+  header { padding: 4.5rem 0 1rem; }
+  .wordmark {
+    font: 700 clamp(3.25rem, 14vw, 5.5rem)/1 var(--mono);
+    letter-spacing: -0.04em; margin: 0;
+  }
+  .wordmark b { color: var(--green); font-weight: inherit; }
+  .cursor { animation: blink 1.2s steps(1) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+  @media (prefers-reduced-motion: reduce) { .cursor { animation: none; } }
+  .tagline { font: 600 clamp(1.3rem, 5vw, 1.75rem)/1.25 var(--sans); margin: 1.75rem 0 0.5rem; }
+  .lede { color: var(--muted); margin: 0 0 2rem; max-width: 34rem; }
+  h2 {
+    font: 600 0.8125rem/1 var(--mono); text-transform: uppercase; letter-spacing: 0.1em;
+    color: var(--muted); margin: 3.5rem 0 1rem;
+  }
+  h2::before { content: "# "; color: var(--green); }
+  p { margin: 0 0 1rem; }
+  a { color: inherit; text-decoration-color: var(--green); text-underline-offset: 0.2em; }
+  a:hover { color: var(--green); }
+  a:focus-visible, button:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+  code { font: 0.9em var(--mono); }
+  p code, li code { background: var(--panel); padding: 0.1em 0.35em; border-radius: 4px; }
+  .term { position: relative; margin: 0 0 1rem; }
+  pre {
+    margin: 0; padding: 1.1rem 1.25rem; overflow-x: auto;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+    font: 0.875rem/1.65 var(--mono); tab-size: 4;
+  }
+  pre .c { color: var(--muted); }
+  pre .p { color: var(--green); user-select: none; }
+  .copy {
+    position: absolute; top: 0.5rem; right: 0.5rem;
+    font: 0.75rem var(--mono); color: var(--muted); background: var(--bg);
+    border: 1px solid var(--line); border-radius: 6px; padding: 0.3rem 0.6rem; cursor: pointer;
+  }
+  .copy:hover { color: var(--fg); }
+  ul { padding-left: 1.2rem; margin: 0 0 1rem; }
+  li { margin-bottom: 0.75rem; }
+  li::marker { color: var(--green); }
+  footer {
+    margin-top: 4rem; padding-top: 1.5rem; border-top: 1px solid var(--line);
+    color: var(--muted); font-size: 0.9375rem;
+  }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1 class="wordmark" aria-label="alash">ala<b>sh</b><span class="cursor" aria-hidden="true">_</span></h1>
+    <p class="tagline">Your shell. Your AI. No API keys.</p>
+    <p class="lede">Ask questions, understand failures and generate commands directly from your terminal.</p>
+
+    <div class="term">
+<pre id="install"><code><span class="c"># 1. get the binary (needs Rust's cargo)</span>
+cargo install --git https://github.com/hmedkouri/alash
+
+<span class="c"># 2. add this line to ~/.zshrc (bash: alash init bash, in ~/.bashrc)</span>
+eval "$(alash init zsh)"
+
+<span class="c"># 3. open a new shell</span>
+ask --doctor
+ask how do I list listening ports
+why</code></pre>
+    </div>
+    <p>alash needs <a href="https://claude.com/claude-code">Claude Code</a> or the
+      <a href="https://github.com/openai/codex">Codex CLI</a> installed and logged in.</p>
+  </header>
+
+  <h2>What it is</h2>
+  <p><code>ask</code>, <code>why</code> and a command-line key binding for zsh and bash, answered by the AI CLI you
+    are already logged in to. No API key: alash runs <code>claude</code> or <code>codex</code> for one answer, with
+    the model's tools switched off.</p>
+  <p><em>Alash</em> is "why" in Moroccan Darija.</p>
+
+  <h2>Use</h2>
+  <div class="term">
+<pre><code><span class="p">$ </span>ask how do I list listening ports
+<span class="p">$ </span>make |&amp; ask why does this fail
+<span class="p">$ </span>ask @codex what does set -o pipefail do
+
+<span class="p">$ </span>tar xf missing.tar
+tar: missing.tar: Cannot open: No such file or directory
+<span class="p">$ </span>why
+
+<span class="p">$ </span>five biggest files here▌            <span class="c"># press Ctrl-X Ctrl-A</span>
+<span class="p">$ </span>find . -type f -printf '%s\t%p\n' | sort -rn | head -5▌</code></pre>
+  </div>
+  <p>The key binding replaces what you typed with one command and stops. It never runs it.</p>
+  <p><code>why</code> sees the command you ran, not what it printed. To include the output, pipe it:
+    <code>cmd |&amp; ask why does this fail</code>.</p>
+
+  <h2>What it will not do</h2>
+  <ul>
+    <li><strong>Give the model tools.</strong> Each harness is started so the model cannot run a command or
+      write a file. If alash cannot do that for the installed version, it refuses to run it.
+      The arguments and the proofs are in
+      <a href="https://github.com/hmedkouri/alash/blob/main/docs/tools-off.md">docs/tools-off.md</a>.</li>
+    <li><strong>Run what the model returns.</strong> The key binding places a reply on the command line only
+      when it is a single line that does not end in a question mark. Anything else is shown
+      as a message. It warns when the first word is not an installed command.</li>
+    <li><strong>Capture or log.</strong> It sends your question, what you pipe in, the previous command line
+      for <code>why</code>, and the typed text for the key binding. It writes nothing to disk.</li>
+  </ul>
+
+  <h2>Limits</h2>
+  <ul>
+    <li><strong>codex keeps your <code>~/.codex/config.toml</code></strong>, so your model provider and login are
+      used. Its MCP servers are switched off by name for each call; if alash cannot read the
+      list of servers, it refuses to run codex.</li>
+    <li><strong>A model may still talk as if it had tools.</strong> Asked to change something, it can
+      answer "Done" or print a tool call as text. Nothing was changed: alash never lets it.
+      Every <code>ask</code> and <code>why</code> question tells the model it has no tools, which stopped both
+      in testing, but a model can ignore that.</li>
+    <li><strong>codex still applies a global <code>~/.codex/AGENTS.md</code>.</strong> No option removes it. The doctor
+      warns when the file exists.</li>
+    <li><strong>codex is still offered a file-patch tool</strong> with gpt-5 models. The read-only sandbox
+      rejects it.</li>
+    <li><strong>Windows is experimental.</strong> A binary is built, but there is no PowerShell integration
+      and it has not been run on Windows.</li>
+    <li>Answers are printed when complete, not streamed, and each question is independent:
+      there are no follow-ups yet.</li>
+  </ul>
+
+  <footer>
+    <p>Source, issues and the full README:
+      <a href="https://github.com/hmedkouri/alash">github.com/hmedkouri/alash</a>. MIT licence.</p>
+  </footer>
+</main>
+<script>
+  // Optional: a copy button on the install snippet. The page is complete without it.
+  if (navigator.clipboard) {
+    var pre = document.getElementById("install");
+    var b = document.createElement("button");
+    b.className = "copy"; b.type = "button"; b.textContent = "copy";
+    b.addEventListener("click", function () {
+      navigator.clipboard.writeText(pre.textContent).then(function () {
+        b.textContent = "copied";
+        setTimeout(function () { b.textContent = "copy"; }, 1500);
+      });
+    });
+    pre.style.paddingTop = "2.6rem"; // room for the button on narrow screens
+    pre.parentNode.appendChild(b);
+  }
+</script>
+</body>
+</html>
