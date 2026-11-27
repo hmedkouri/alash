@@ -57,6 +57,10 @@
   }
   pre .c { color: var(--muted); }
   pre .p { color: var(--green); user-select: none; }
+  video {
+    display: block; width: 100%; height: auto; margin: 0 0 1rem;
+    border: 1px solid var(--line); border-radius: 8px; background: #121314;
+  }
   .copy {
     position: absolute; top: 0.5rem; right: 0.5rem;
     font: 0.75rem var(--mono); color: var(--muted); background: var(--bg);
@@ -105,6 +109,11 @@ why</code></pre>
   <p><em>Alash</em> is "why" in Moroccan Darija.</p>
 
   <h2>Use</h2>
+  <video controls muted playsinline preload="metadata" width="978" height="784"
+         aria-label="A 30-second terminal recording: a question with piped input, why after a failed command, the key binding placing a command, and the doctor's table. The same commands are written out below.">
+    <source src="demo.mp4" type="video/mp4">
+    <a href="demo.gif">The demo as a GIF</a>
+  </video>
   <div class="term">
 <pre><code><span class="p">$ </span>ask how do I list listening ports
 <span class="p">$ </span>make |&amp; ask why does this fail
