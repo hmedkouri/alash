@@ -33,6 +33,10 @@ alash needs [Claude Code](https://claude.com/claude-code) or the
    ```sh
    cargo install alash
    ```
+
+   No Rust? Download a prebuilt binary from the
+   [releases page](https://github.com/hmedkouri/alash/releases/latest) and put it on your
+   `PATH`.
 2. Add one line to `~/.zshrc` or `~/.bashrc`:
 
    ```sh
