@@ -6,6 +6,13 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- The zsh key binding no longer redraws the prompt one row up. Every press wrote the
+  command over the last line of the previous output, and the message under it, "not
+  installed: ..." or a harness warning, was wiped before it could be read. So the warning
+  that a suggested command does not exist was never visible in zsh.
+
 ## [0.2.2] - 2026-11-27
 
 ### Fixed
