@@ -6,6 +6,11 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- The crate is published to crates.io by the release workflow through Trusted Publishing,
+  so a release no longer needs a token on someone's machine.
+
 ## [0.1.1] - 2026-11-27
 
 ### Added
