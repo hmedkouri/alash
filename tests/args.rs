@@ -320,3 +320,50 @@ fn a_bad_time_limit_says_what_to_do() {
     assert_eq!(r.args, "", "the harness must not be run");
     assert!(String::from_utf8_lossy(&r.out.stderr).contains("ALASH_TIMEOUT=soon is not a number"));
 }
+
+const ALL_FLAGS: &str = "v1 --print --model --tools --setting-sources --strict-mcp-config \
+     --sandbox --ephemeral --skip-git-repo-check --ignore-rules --disable --color";
+
+#[test]
+fn the_doctor_reports_every_check_as_a_table_row() {
+    let r = alash("doctor", &["ask", "--doctor"], &[("FAKE_REPLY", ALL_FLAGS)]);
+    let out = stdout(&r);
+    assert!(r.out.status.success(), "{out}");
+    assert!(out.starts_with("alash doctor v"), "{out}");
+    assert!(!out.contains('\x1b'), "piped output has no colour codes");
+    for check in [
+        "shell",
+        "why",
+        "key binding",
+        "claude",
+        "claude tools",
+        "claude round trip",
+        "codex",
+        "codex tools",
+        "codex mcp",
+        "codex instructions",
+        "codex round trip",
+        "base URL",
+    ] {
+        assert!(
+            out.contains(&format!("\n│ {check} ")),
+            "missing row {check}:\n{out}"
+        );
+    }
+    assert!(out.contains("switched off by name: probe, remote_x"));
+    assert!(out.contains("claude round trip  │ · skip"));
+}
+
+#[test]
+fn the_doctor_fails_only_when_the_default_harness_cannot_work() {
+    // codex cannot switch a tool off: a warning while claude is the default.
+    let broken = [("FAKE_REPLY", ALL_FLAGS), ("FAKE_FEATURES", "goals")];
+    let r = alash("doctor-warn", &["ask", "--doctor"], &broken);
+    assert!(r.out.status.success());
+    assert!(stdout(&r).contains("codex tools        │ ⚠ warn │ NOT off"));
+
+    let default_codex = [broken[0], broken[1], ("ALASH_HARNESS", "codex")];
+    let r = alash("doctor-fail", &["ask", "--doctor"], &default_codex);
+    assert!(!r.out.status.success());
+    assert!(stdout(&r).contains("codex tools        │ ✗ fail │ NOT off"));
+}

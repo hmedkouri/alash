@@ -7,7 +7,7 @@ ask() {
     local w=0 k=0
     [[ "$(declare -f why)" == *'alash why'* ]] && w=1
     [[ "$(bind -X 2>/dev/null)" == *'"\C-x\C-a": "_alash_cmd"'* ]] && k=1
-    ALASH_SHELL=bash ALASH_WHY=$w ALASH_KEY=$k command alash ask "$@"
+    ALASH_SHELL=bash ALASH_WHY=$w ALASH_KEY=$k COLUMNS=$COLUMNS command alash ask "$@"
   else
     ALASH_SHELL=bash command alash ask "$@"
   fi

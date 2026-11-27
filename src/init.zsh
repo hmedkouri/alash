@@ -7,7 +7,7 @@ ask() {
     local w=0 k=0
     [[ $functions[why] == *'alash why'* ]] && w=1
     [[ "$(bindkey '^X^A' 2>/dev/null)" == *' _alash_cmd' ]] && k=1
-    ALASH_SHELL=zsh ALASH_WHY=$w ALASH_KEY=$k command alash ask "$@"
+    ALASH_SHELL=zsh ALASH_WHY=$w ALASH_KEY=$k COLUMNS=$COLUMNS command alash ask "$@"
   else
     ALASH_SHELL=zsh command alash ask "$@"
   fi
