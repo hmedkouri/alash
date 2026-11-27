@@ -63,6 +63,11 @@ alash needs [Claude Code](https://claude.com/claude-code) or the
 `why` sees the command you ran, not what it printed. To include the output, pipe it:
 `cmd |& ask why does this fail`.
 
+A question is typed as it is, question mark included. Quote it when it contains an
+apostrophe, parentheses, or one of `; & | < >`, which the shell reads before alash does:
+`ask "what's a symlink?"`. In bash, quote it too if it contains `*`, `?` or `[` and a file
+name could match.
+
 A warning the harness prints, such as a sign-in about to expire, is shown after the
 answer. The key binding shows it once per shell session.
 
