@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-11-27
+
 ### Added
 
 - `ALASH_TIMEOUT`: seconds a harness may take. The default is 60, and 30 for the key
@@ -18,7 +20,6 @@ All notable changes to this project are documented here. The format follows
   time limit, prints the last lines it wrote, and exits non-zero.
 - Stopping alash (Ctrl-C, hangup, `kill`) stops the harness too. It used to be left
   running.
-
 - Release binaries are attached again. The repository has immutable releases on, so the
   `v0.1.0` release was locked before its archives could be uploaded and has none. The
   release is now created as a draft and published after the uploads.
@@ -46,5 +47,6 @@ First release.
 - Configuration by environment variable: `ASK_MODEL`, `ALASH_CODEX_MODEL`,
   `ALASH_HARNESS`, `ALASH_BASE_URL`.
 
-[Unreleased]: https://github.com/hmedkouri/alash/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/hmedkouri/alash/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/hmedkouri/alash/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/hmedkouri/alash/releases/tag/v0.1.0

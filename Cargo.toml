@@ -1,6 +1,6 @@
 [package]
 name = "alash"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 # The oldest toolchain the tests were run on (1.85 passes). Not bisected lower, so the real
 # floor may be older. The `msrv` CI job builds on exactly this toolchain.
