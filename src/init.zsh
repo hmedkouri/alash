@@ -35,8 +35,10 @@ _alash_cmd() {
       typeset -g _alash_note=$note
       msg=${msg:+$msg$'\n'}$note
     fi
+    # No `zle redisplay` after this: zle redraws when the widget returns, and an explicit
+    # redisplay here drew the prompt one row up, over the last line of previous output,
+    # and wiped the message. scripts/check-keybinding.sh guards it.
     zle -M "$msg"
-    zle redisplay
   else
     zle -M "$out"
   fi
