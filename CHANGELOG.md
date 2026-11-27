@@ -6,6 +6,12 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- Release binaries are attached again. The repository has immutable releases on, so the
+  `v0.1.0` release was locked before its archives could be uploaded and has none. The
+  release is now created as a draft and published after the uploads.
+
 ## [0.1.0] - 2026-11-27
 
 First release.
