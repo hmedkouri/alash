@@ -5,10 +5,124 @@
 //! with a new proof.
 
 use std::collections::HashSet;
-use std::io::ErrorKind;
+use std::io::{ErrorKind, Read};
 use std::net::{TcpStream, ToSocketAddrs};
-use std::process::{Command, Stdio};
-use std::time::Duration;
+use std::process::{Child, Command, Stdio};
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
+
+/// Being told to stop (Ctrl-C, hangup, `kill`) and passing that on to the harness, so it
+/// never outlives alash. Two libc calls declared by hand: no dependency.
+#[cfg(unix)]
+mod signals {
+    use std::sync::atomic::{AtomicBool, Ordering};
+
+    static STOP: AtomicBool = AtomicBool::new(false);
+
+    extern "C" fn on_signal(_: i32) {
+        STOP.store(true, Ordering::SeqCst);
+    }
+
+    extern "C" {
+        fn signal(signum: i32, handler: extern "C" fn(i32)) -> usize;
+        fn kill(pid: i32, sig: i32) -> i32;
+    }
+
+    // The same numbers on Linux and macOS.
+    const SIGHUP: i32 = 1;
+    const SIGINT: i32 = 2;
+    const SIGTERM: i32 = 15;
+
+    /// From here on a signal sets a flag in place of ending alash at once.
+    pub fn watch() {
+        for sig in [SIGHUP, SIGINT, SIGTERM] {
+            // SAFETY: the handler only stores to an atomic, which is async-signal-safe.
+            unsafe { signal(sig, on_signal) };
+        }
+    }
+
+    pub fn stopped() -> bool {
+        STOP.load(Ordering::SeqCst)
+    }
+
+    /// Ask the process to end, so a wrapper script can stop what it started.
+    pub fn terminate(pid: u32) {
+        // SAFETY: plain syscall; a pid that is already gone is an ignored error.
+        unsafe { kill(pid as i32, SIGTERM) };
+    }
+}
+
+#[cfg(not(unix))]
+mod signals {
+    pub fn watch() {}
+    pub fn stopped() -> bool {
+        false
+    }
+    pub fn terminate(_pid: u32) {}
+}
+
+/// Seconds a harness may take. The key binding gets less: a frozen prompt is worse than a
+/// slow answer.
+fn time_limit(one_turn: bool) -> Result<Duration, String> {
+    match std::env::var("ALASH_TIMEOUT") {
+        Ok(v) if !v.is_empty() => match v.parse::<u64>() {
+            Ok(secs) if secs > 0 => Ok(Duration::from_secs(secs)),
+            _ => Err(format!(
+                "ALASH_TIMEOUT={v} is not a number of seconds. Set it to a whole number above \
+                 0, or unset it."
+            )),
+        },
+        _ => Ok(Duration::from_secs(if one_turn { 30 } else { 60 })),
+    }
+}
+
+/// Collects a pipe on a thread, so what the harness said so far can be read while it runs.
+struct Collected {
+    buf: Arc<Mutex<Vec<u8>>>,
+    reader: std::thread::JoinHandle<()>,
+}
+
+fn collect(mut pipe: impl Read + Send + 'static) -> Collected {
+    let buf = Arc::new(Mutex::new(Vec::new()));
+    let shared = Arc::clone(&buf);
+    let reader = std::thread::spawn(move || {
+        let mut chunk = [0u8; 4096];
+        while let Ok(n) = pipe.read(&mut chunk) {
+            if n == 0 {
+                break;
+            }
+            shared.lock().unwrap().extend_from_slice(&chunk[..n]);
+        }
+    });
+    Collected { buf, reader }
+}
+
+impl Collected {
+    fn text(&self) -> String {
+        String::from_utf8_lossy(&self.buf.lock().unwrap()).into_owned()
+    }
+}
+
+/// The last few distinct lines: codex retries and repeats itself on stderr.
+fn last_lines(said: &str) -> String {
+    let mut lines: Vec<&str> = said.lines().filter(|l| !l.trim().is_empty()).collect();
+    lines.dedup();
+    lines[lines.len().saturating_sub(4)..].join("\n")
+}
+
+/// End the harness: ask first, then force. It must not outlive alash.
+fn stop(child: &mut Child) {
+    signals::terminate(child.id());
+    let asked = Instant::now();
+    while asked.elapsed() < Duration::from_secs(2) {
+        if matches!(child.try_wait(), Ok(Some(_))) {
+            return;
+        }
+        std::thread::sleep(Duration::from_millis(25));
+    }
+    let _ = child.kill();
+    let _ = child.wait();
+}
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Harness {
@@ -161,24 +275,63 @@ impl Harness {
             ));
         }
         let mcp_servers = self.mcp_servers()?;
+        let limit = time_limit(one_turn)?;
         let mut cmd = Command::new(self.name());
         cmd.args(self.args(prompt, one_turn, &mcp_servers))
-            .stdin(stdin);
+            .stdin(stdin)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
         let base_url = base_url();
         if let (Harness::Claude, Some(url)) = (self, &base_url) {
             cmd.env("ANTHROPIC_BASE_URL", url);
         }
-        let out = cmd.output().map_err(|e| self.spawn_error(&e))?;
-        let stdout = String::from_utf8_lossy(&out.stdout).into_owned();
-        if out.status.success() {
+        signals::watch();
+        let mut child = cmd.spawn().map_err(|e| self.spawn_error(&e))?;
+        let stdout = collect(child.stdout.take().expect("stdout is piped"));
+        let stderr = collect(child.stderr.take().expect("stderr is piped"));
+        let started = Instant::now();
+        let status = loop {
+            match child.try_wait() {
+                Ok(Some(status)) => break status,
+                Ok(None) => {}
+                Err(e) => return Err(format!("could not wait for {}: {e}", self.name())),
+            }
+            if signals::stopped() {
+                stop(&mut child);
+                return Err(format!("{} was stopped.", self.name()));
+            }
+            if started.elapsed() >= limit {
+                stop(&mut child);
+                // A harness that cannot reach its provider retries without end. What it
+                // said so far is the only clue, so it goes first.
+                return Err(format!(
+                    "{}\n{} did not answer within {} s, so alash stopped it. Check its login \
+                     and network with `ask --doctor --live`. ALASH_TIMEOUT=<seconds> changes \
+                     the limit.",
+                    last_lines(&stderr.text()),
+                    self.name(),
+                    limit.as_secs()
+                )
+                .trim_start()
+                .to_string());
+            }
+            std::thread::sleep(Duration::from_millis(25));
+        };
+        // The readers end when the pipes close, normally at exit. The wait is bounded in
+        // case something the harness started still holds a pipe open.
+        let exited = Instant::now();
+        while !(stdout.reader.is_finished() && stderr.reader.is_finished())
+            && exited.elapsed() < Duration::from_secs(2)
+        {
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        let stdout = stdout.text();
+        if status.success() {
             return Ok(stdout);
         }
-        let said = format!("{stdout}{}", String::from_utf8_lossy(&out.stderr));
+        let said = format!("{stdout}{}", stderr.text());
         let low = said.to_lowercase();
-        // codex retries and repeats itself on stderr: keep the last few distinct lines.
-        let mut lines: Vec<&str> = said.lines().filter(|l| !l.trim().is_empty()).collect();
-        lines.dedup();
-        let said = lines[lines.len().saturating_sub(4)..].join("\n");
+        let said = last_lines(&said);
         let hint = if let (Harness::Claude, Some(url)) = (self, &base_url) {
             if url_answers(url) {
                 self.login_hint(&low)
@@ -195,7 +348,7 @@ impl Harness {
             "{}\n{} failed ({}). {}",
             said.trim_end(),
             self.name(),
-            out.status,
+            status,
             hint.unwrap_or_else(|| "Run `ask --doctor` to check the setup.".into())
         ))
     }

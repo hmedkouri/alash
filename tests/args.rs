@@ -16,6 +16,11 @@ if [ "$1" = mcp ]; then
   printf '%s' "$FAKE_MCP"
   exit 0
 fi
+if [ -n "$FAKE_SLEEP" ]; then
+  echo "$FAKE_STDERR" >&2
+  echo $$ > "$FAKE_PID"
+  exec sleep "$FAKE_SLEEP"
+fi
 printf '%s\n' "$@" > "$FAKE_ARGS"
 echo "base=${ANTHROPIC_BASE_URL-unset}" >> "$FAKE_ARGS"
 printf '%s\n' "$FAKE_REPLY"
@@ -206,4 +211,112 @@ fn a_missing_harness_says_what_to_do() {
         .unwrap();
     assert!(!out.status.success());
     assert!(String::from_utf8_lossy(&out.stderr).contains("claude is not installed"));
+}
+
+/// A directory holding fake harnesses that hang, and the file their pid is written to.
+fn hanging(test: &str) -> (PathBuf, PathBuf) {
+    let dir: PathBuf = std::env::temp_dir().join(format!("alash-{}-{test}", std::process::id()));
+    fs::create_dir_all(&dir).unwrap();
+    for name in ["claude", "codex"] {
+        let path = dir.join(name);
+        fs::write(&path, FAKE).unwrap();
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o755)).unwrap();
+    }
+    let pid = dir.join("pid");
+    (dir, pid)
+}
+
+fn hanging_alash(dir: &std::path::Path, pid: &std::path::Path, args: &[&str]) -> Command {
+    let mut cmd = Command::new(env!("CARGO_BIN_EXE_alash"));
+    cmd.args(args)
+        .env_clear()
+        .env("PATH", format!("{}:/usr/bin:/bin", dir.display()))
+        .env("FAKE_FEATURES", ALL_FEATURES)
+        .env("FAKE_MCP", "[]\n")
+        .env("FAKE_SLEEP", "30")
+        .env("FAKE_STDERR", "ERROR: Reconnecting... waiting for network")
+        .env("FAKE_PID", pid);
+    cmd
+}
+
+fn alive(pid: &str) -> bool {
+    Command::new("kill")
+        .args(["-0", pid.trim()])
+        .stderr(std::process::Stdio::null())
+        .status()
+        .unwrap()
+        .success()
+}
+
+#[test]
+fn a_harness_that_never_answers_is_stopped_and_what_it_said_is_shown() {
+    let (dir, pid) = hanging("timeout");
+    let started = std::time::Instant::now();
+    let out = hanging_alash(&dir, &pid, &["ask", "@codex", "hi"])
+        .env("ALASH_TIMEOUT", "1")
+        .output()
+        .unwrap();
+    assert!(
+        started.elapsed().as_secs() < 5,
+        "alash must not wait for the harness"
+    );
+    assert!(!out.status.success());
+    let err = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        err.contains("ERROR: Reconnecting... waiting for network"),
+        "{err}"
+    );
+    assert!(err.contains("codex did not answer within 1 s"), "{err}");
+    assert!(
+        !alive(&fs::read_to_string(&pid).unwrap()),
+        "the harness must be gone"
+    );
+    fs::remove_dir_all(&dir).unwrap();
+}
+
+#[test]
+fn the_key_binding_reports_a_timeout_on_stdout() {
+    let (dir, pid) = hanging("timeout-cmd");
+    let out = hanging_alash(&dir, &pid, &["cmd", "list files"])
+        .env("ALASH_TIMEOUT", "1")
+        .output()
+        .unwrap();
+    assert!(!out.status.success());
+    assert!(String::from_utf8_lossy(&out.stdout).contains("claude did not answer within 1 s"));
+    assert!(!alive(&fs::read_to_string(&pid).unwrap()));
+    fs::remove_dir_all(&dir).unwrap();
+}
+
+#[test]
+fn stopping_alash_stops_the_harness() {
+    let (dir, pid) = hanging("sigterm");
+    let mut child = hanging_alash(&dir, &pid, &["ask", "hi"])
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .unwrap();
+    let waited = std::time::Instant::now();
+    while !pid.exists() || fs::read_to_string(&pid).unwrap().trim().is_empty() {
+        assert!(
+            waited.elapsed().as_secs() < 5,
+            "the fake harness never started"
+        );
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    }
+    let harness = fs::read_to_string(&pid).unwrap();
+    assert!(alive(&harness));
+    Command::new("kill")
+        .arg(child.id().to_string())
+        .status()
+        .unwrap();
+    assert!(!child.wait().unwrap().success());
+    assert!(!alive(&harness), "the harness must not outlive alash");
+    fs::remove_dir_all(&dir).unwrap();
+}
+
+#[test]
+fn a_bad_time_limit_says_what_to_do() {
+    let r = alash("badlimit", &["ask", "hi"], &[("ALASH_TIMEOUT", "soon")]);
+    assert!(!r.out.status.success());
+    assert_eq!(r.args, "", "the harness must not be run");
+    assert!(String::from_utf8_lossy(&r.out.stderr).contains("ALASH_TIMEOUT=soon is not a number"));
 }

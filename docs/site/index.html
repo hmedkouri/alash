@@ -135,7 +135,8 @@ tar: missing.tar: Cannot open: No such file or directory
   <ul>
     <li><strong>codex keeps your <code>~/.codex/config.toml</code></strong>, so your model provider and login are
       used. Its MCP servers are switched off by name for each call; if alash cannot read the
-      list of servers, it refuses to run codex.</li>
+      list of servers, it refuses to run codex. A broken provider or an expired login in that
+      file shows up as a timeout, with codex's last lines printed above it.</li>
     <li><strong>A model may still talk as if it had tools.</strong> Asked to change something, it can
       answer "Done" or print a tool call as text. Nothing was changed: alash never lets it.
       Every <code>ask</code> and <code>why</code> question tells the model it has no tools, which stopped both
