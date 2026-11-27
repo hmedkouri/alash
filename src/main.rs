@@ -57,11 +57,13 @@ fn shell() -> String {
 }
 
 fn init(rest: &[String]) -> ExitCode {
-    match rest.first().map(String::as_str) {
-        Some("zsh") => print!("{}", include_str!("init.zsh")),
-        Some("bash") => print!("{}", include_str!("init.bash")),
+    let code = match rest.first().map(String::as_str) {
+        Some("zsh") => include_str!("init.zsh"),
+        Some("bash") => include_str!("init.bash"),
         _ => return fail("usage: alash init zsh|bash"),
     }
+    .replace("@VERSION@", env!("CARGO_PKG_VERSION"));
+    print!("{code}");
     ExitCode::SUCCESS
 }
 

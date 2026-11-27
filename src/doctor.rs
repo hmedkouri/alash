@@ -408,6 +408,76 @@ fn check(h: Harness, sev: Status, live: bool) -> Vec<Row> {
     rows
 }
 
+/// The `shell`, `why` and `key binding` rows, from what the `ask` function passed.
+///
+/// `init` is the alash version whose `alash init` output defined that function. A shell
+/// keeps the functions it started with, so after an upgrade an old function calls the new
+/// binary until a new shell is opened: that is reported as such, not as "not loaded".
+fn shell_rows(
+    shell: Option<&str>,
+    why: Option<bool>,
+    key: Option<bool>,
+    init: Option<&str>,
+    running: &str,
+) -> Vec<Row> {
+    let Some(shell) = shell else {
+        let unchecked = "not checked: run `ask --doctor` in a shell that has loaded alash";
+        return ["shell", "why", "key binding"]
+            .map(|check| row(check, Status::Skip, unchecked))
+            .into();
+    };
+    let reload = format!("open a new shell, or run: eval \"$(alash init {shell})\"");
+    let stale = init != Some(running);
+    let mut rows = vec![if stale {
+        row(
+            "shell",
+            Status::Warn,
+            format!(
+                "this {shell} loaded alash {} and is now calling {running}",
+                init.unwrap_or("from an older version")
+            ),
+        )
+        .fix(format!(
+            "a shell keeps the functions it started with; {reload}"
+        ))
+    } else {
+        row(
+            "shell",
+            Status::Pass,
+            format!("called from the {shell} `ask` function"),
+        )
+    }];
+    let older = "not reported by the older `ask` function in this shell";
+    rows.push(match why {
+        Some(true) => row("why", Status::Pass, "is the alash function"),
+        Some(false) => row(
+            "why",
+            Status::Warn,
+            "is not the alash function (missing or redefined)",
+        )
+        .fix(format!("something else defined `why`; {reload}")),
+        None => row("why", Status::Skip, older),
+    });
+    rows.push(match key {
+        Some(true) => row(
+            "key binding",
+            Status::Pass,
+            "Ctrl-X Ctrl-A is bound to alash",
+        ),
+        Some(false) => row(
+            "key binding",
+            Status::Warn,
+            "Ctrl-X Ctrl-A is not bound to alash",
+        )
+        .fix(
+            "never bound, or rebound by something loaded later; put the alash eval line at \
+             the end of your shell's rc file",
+        ),
+        None => row("key binding", Status::Skip, older),
+    });
+    rows
+}
+
 /// Runs every check. The rows are the same ones, in the same order, on every run.
 fn rows(default: Option<Harness>, live: bool) -> Vec<Row> {
     // The slow checks wait on other programs and the network, so they run side by side:
@@ -457,53 +527,15 @@ fn rows(default: Option<Harness>, live: bool) -> Vec<Row> {
     let mut rows = vec![version];
     // The `ask` function reports what it found in the calling shell. Only that is
     // repeated here: this process cannot see the shell's functions or key bindings.
-    let found = |var: &str| std::env::var(var).ok().map(|v| v == "1");
-    let eval = "add `eval \"$(alash init zsh)\"` (or bash) at the end of your shell's rc file";
-    match (
-        std::env::var("ALASH_SHELL"),
+    let var = |name: &str| std::env::var(name).ok();
+    let found = |name: &str| var(name).map(|v| v == "1");
+    rows.extend(shell_rows(
+        var("ALASH_SHELL").as_deref(),
         found("ALASH_WHY"),
         found("ALASH_KEY"),
-    ) {
-        (Ok(shell), Some(why), Some(key)) => {
-            rows.push(row(
-                "shell",
-                Status::Pass,
-                format!("called from the {shell} `ask` function"),
-            ));
-            rows.push(if why {
-                row("why", Status::Pass, "is the alash function")
-            } else {
-                row(
-                    "why",
-                    Status::Warn,
-                    "is not the alash function (missing or redefined)",
-                )
-                .fix(eval)
-            });
-            rows.push(if key {
-                row(
-                    "key binding",
-                    Status::Pass,
-                    "Ctrl-X Ctrl-A is bound to alash",
-                )
-            } else {
-                row(
-                    "key binding",
-                    Status::Warn,
-                    "Ctrl-X Ctrl-A is not bound to alash",
-                )
-                .fix(format!(
-                    "never bound, or rebound by something loaded later; {eval}"
-                ))
-            });
-        }
-        _ => {
-            let why = "not checked: run `ask --doctor` in a shell that has loaded alash";
-            rows.push(row("shell", Status::Skip, why));
-            rows.push(row("why", Status::Skip, why));
-            rows.push(row("key binding", Status::Skip, why));
-        }
-    }
+        var("ALASH_INIT").as_deref(),
+        env!("CARGO_PKG_VERSION"),
+    ));
     rows.extend(harnesses);
     rows.push(base);
     rows
@@ -550,6 +582,47 @@ mod tests {
             row("codex", Status::Fail, "not on the PATH").fix("install codex"),
             row("base URL", Status::Skip, "not set"),
         ]
+    }
+
+    fn statuses(rows: &[Row]) -> Vec<Status> {
+        rows.iter().map(|r| r.status).collect()
+    }
+
+    #[test]
+    fn a_shell_that_loaded_an_older_alash_is_told_so() {
+        use Status::*;
+        let current = shell_rows(Some("zsh"), Some(true), Some(true), Some("0.2.2"), "0.2.2");
+        assert_eq!(statuses(&current), [Pass, Pass, Pass]);
+
+        // Started under 0.2.1, binary upgraded since.
+        let upgraded = shell_rows(Some("zsh"), Some(true), Some(true), Some("0.2.1"), "0.2.2");
+        assert_eq!(statuses(&upgraded), [Warn, Pass, Pass]);
+        assert_eq!(
+            upgraded[0].summary,
+            "this zsh loaded alash 0.2.1 and is now calling 0.2.2"
+        );
+        assert!(upgraded[0]
+            .fix
+            .as_ref()
+            .unwrap()
+            .contains("eval \"$(alash init zsh)\""));
+
+        // A function from before the evidence existed passes only ALASH_SHELL.
+        let ancient = shell_rows(Some("bash"), None, None, None, "0.2.2");
+        assert_eq!(statuses(&ancient), [Warn, Skip, Skip]);
+        assert!(ancient[0].summary.contains("from an older version"));
+
+        let direct = shell_rows(None, None, None, None, "0.2.2");
+        assert_eq!(statuses(&direct), [Skip, Skip, Skip]);
+
+        let rebound = shell_rows(
+            Some("zsh"),
+            Some(false),
+            Some(false),
+            Some("0.2.2"),
+            "0.2.2",
+        );
+        assert_eq!(statuses(&rebound), [Pass, Warn, Warn]);
     }
 
     #[test]

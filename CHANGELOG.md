@@ -6,6 +6,14 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- After an upgrade, `ask --doctor` in a shell that was already open said the shell had
+  not loaded alash. It had: a shell keeps the `ask` function it started with, and the old
+  function did not pass what the new doctor expects. The shell code now carries the
+  version that printed it, and the doctor says the shell loaded an older alash and how to
+  reload it.
+
 ## [0.2.1] - 2026-11-27
 
 ### Changed

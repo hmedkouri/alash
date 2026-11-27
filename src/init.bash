@@ -4,10 +4,12 @@
 ask() {
   if [[ $1 == --doctor ]]; then
     # Evidence for the doctor: is `why` still ours, and is the key still bound to our widget?
+    # ALASH_INIT is the alash version that printed this code, so the doctor can tell a
+    # shell that started before an upgrade.
     local w=0 k=0
     [[ "$(declare -f why)" == *'alash why'* ]] && w=1
     [[ "$(bind -X 2>/dev/null)" == *'"\C-x\C-a": "_alash_cmd"'* ]] && k=1
-    ALASH_SHELL=bash ALASH_WHY=$w ALASH_KEY=$k COLUMNS=$COLUMNS command alash ask "$@"
+    ALASH_SHELL=bash ALASH_INIT=@VERSION@ ALASH_WHY=$w ALASH_KEY=$k COLUMNS=$COLUMNS command alash ask "$@"
   else
     ALASH_SHELL=bash command alash ask "$@"
   fi

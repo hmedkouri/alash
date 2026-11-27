@@ -484,3 +484,45 @@ fn the_doctor_survives_a_version_check_that_cannot_be_made() {
     let r = alash("version-off", &["ask", "--doctor"], &off);
     assert!(stdout(&r).contains("check switched off by ALASH_NO_UPDATE_CHECK"));
 }
+
+#[test]
+fn init_stamps_the_shell_code_with_the_version() {
+    for shell in ["zsh", "bash"] {
+        let r = alash("init", &["init", shell], &[]);
+        let code = stdout(&r);
+        assert!(r.out.status.success());
+        assert!(
+            code.contains(concat!("ALASH_INIT=", env!("CARGO_PKG_VERSION"), " ")),
+            "{code}"
+        );
+        assert!(!code.contains("@VERSION@"));
+    }
+}
+
+#[test]
+fn the_doctor_tells_a_shell_from_before_an_upgrade_from_one_never_set_up() {
+    let version = env!("CARGO_PKG_VERSION");
+    let current = [
+        ("FAKE_REPLY", ALL_FLAGS),
+        ("ALASH_SHELL", "zsh"),
+        ("ALASH_WHY", "1"),
+        ("ALASH_KEY", "1"),
+        ("ALASH_INIT", version),
+    ];
+    let out = stdout(&alash("shell-current", &["ask", "--doctor"], &current));
+    assert!(
+        out.contains("│ shell              │ ✓ pass │ called from the zsh `ask` function"),
+        "{out}"
+    );
+
+    // What a shell started under an older alash passes: no version, no evidence.
+    let old = [("FAKE_REPLY", ALL_FLAGS), ("ALASH_SHELL", "zsh")];
+    let r = alash("shell-old", &["ask", "--doctor"], &old);
+    let out = stdout(&r);
+    assert!(r.out.status.success(), "a stale shell is a warning");
+    assert!(
+        out.contains("│ shell              │ ⚠ warn │ this zsh loaded alash from an older version"),
+        "{out}"
+    );
+    assert!(out.contains("open a new shell, or run: eval \"$(alash init zsh)\""));
+}
