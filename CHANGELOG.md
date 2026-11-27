@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-27
+
 ### Added
 
 - `ask --doctor` says when a newer alash has been released and how to update. It asks
@@ -66,6 +68,7 @@ First release.
 - Configuration by environment variable: `ASK_MODEL`, `ALASH_CODEX_MODEL`,
   `ALASH_HARNESS`, `ALASH_BASE_URL`.
 
-[Unreleased]: https://github.com/hmedkouri/alash/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/hmedkouri/alash/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/hmedkouri/alash/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/hmedkouri/alash/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/hmedkouri/alash/releases/tag/v0.1.0
