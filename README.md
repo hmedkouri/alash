@@ -6,6 +6,8 @@ the model's tools switched off.
 
 *Alash* is "why" in Moroccan Darija.
 
+![A terminal recording of alash: a question with piped input, why after a failed command, the key binding placing a command, and the doctor's table](docs/site/demo.gif)
+
 Site: [alash.app](https://alash.app)
 
 ```console
