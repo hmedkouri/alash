@@ -20,9 +20,13 @@ jobs:
       - name: Tag matches the manifest version
         run: test "v$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[0].version')" = "$GITHUB_REF_NAME"
       # Notes come from the matching CHANGELOG.md section; the release fails without one.
+      # A draft, because this repository has immutable releases on: a published release
+      # accepts no more files. `publish-release` below publishes it once every archive is
+      # attached. v0.1.0 was published first and so has no binaries.
       - uses: taiki-e/create-gh-release-action@v1
         with:
           changelog: CHANGELOG.md
+          draft: true
           token: ${{ secrets.GITHUB_TOKEN }}
 
   upload-assets:
@@ -55,3 +59,12 @@ jobs:
           archive: alash-$tag-$target
           checksum: sha256
           token: ${{ secrets.GITHUB_TOKEN }}
+
+  # Only when every target uploaded: a release missing a platform stays a draft.
+  publish-release:
+    needs: upload-assets
+    runs-on: ubuntu-latest
+    steps:
+      - run: gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft=false
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
