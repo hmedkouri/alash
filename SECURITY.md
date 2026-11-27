@@ -3,7 +3,7 @@
 ## Scope
 
 `alash` sends your question, and whatever you pipe into `ask`, to an AI CLI you are
-logged in to (`claude` or `codex`). It makes no network request of its own, writes no
+logged in to (`claude` or `codex`). It makes one network request of its own (see below), writes no
 file and keeps no log.
 
 The properties it promises:
@@ -15,6 +15,11 @@ The properties it promises:
   mark. Control characters are replaced before anything is displayed.
 * **Nothing is captured.** Only the question, piped input, the previous command line
   (`why`) and the text you typed (the key binding) are sent.
+
+* **One request of its own.** `ask --doctor` asks github.com for the latest release, by
+  running `curl` on the releases address and reading the redirect. It sends nothing about
+  you or your setup beyond what any request to github.com carries. `ask`, `why` and the
+  key binding never make it, and `ALASH_NO_UPDATE_CHECK=1` switches it off.
 
 What you pipe in is sent to the model provider. Do not pipe secrets.
 

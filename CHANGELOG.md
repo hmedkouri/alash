@@ -8,6 +8,9 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- `ask --doctor` says when a newer alash has been released and how to update. It asks
+  github.com by running `curl`; this is the only network request alash makes itself, the
+  doctor is the only place it happens, and `ALASH_NO_UPDATE_CHECK=1` switches it off.
 - A warning a harness prints when it succeeds is passed on, after the answer and on
   stderr. claude's notice that a sign-in is about to expire used to be dropped, so the
   first sign of it was `ask` failing. The key binding shows a warning once per shell
