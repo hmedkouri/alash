@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.3] - 2026-11-27
+
 ### Fixed
 
 - The zsh key binding no longer redraws the prompt one row up. Every press wrote the
@@ -99,7 +101,8 @@ First release.
 - Configuration by environment variable: `ASK_MODEL`, `ALASH_CODEX_MODEL`,
   `ALASH_HARNESS`, `ALASH_BASE_URL`.
 
-[Unreleased]: https://github.com/hmedkouri/alash/compare/v0.2.2...HEAD
+[Unreleased]: https://github.com/hmedkouri/alash/compare/v0.2.3...HEAD
+[0.2.3]: https://github.com/hmedkouri/alash/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/hmedkouri/alash/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/hmedkouri/alash/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/hmedkouri/alash/compare/v0.1.1...v0.2.0
