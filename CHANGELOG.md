@@ -6,6 +6,13 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- A warning a harness prints when it succeeds is passed on, after the answer and on
+  stderr. claude's notice that a sign-in is about to expire used to be dropped, so the
+  first sign of it was `ask` failing. The key binding shows a warning once per shell
+  session, and `ask --doctor --live` reports it as a warn on the round-trip row.
+
 ### Changed
 
 - `ask --doctor` reports as a table: one row per check with a status of pass, warn, fail

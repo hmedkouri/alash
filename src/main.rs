@@ -74,8 +74,12 @@ fn answer(picked: Result<(Harness, &str), String>, stdin: Stdio) -> ExitCode {
         }
     });
     match reply {
-        Ok(text) => {
-            say!("{}", text.trim_end());
+        Ok(reply) => {
+            say!("{}", reply.text.trim_end());
+            // After the answer and on stderr, so a pipe still receives only the answer.
+            if !reply.warnings.is_empty() {
+                eprintln!("{}", reply.warnings);
+            }
             ExitCode::SUCCESS
         }
         Err(e) => fail(&e),
@@ -148,7 +152,8 @@ fn machine() -> String {
 }
 
 /// `alash cmd <typed text>`: everything goes to stdout because the key binding shows it.
-/// Exit 0 means stdout is one command to place; anything else means it is a message.
+/// Exit 0 means the first line of stdout is one command to place, and any lines after it
+/// are a warning from the harness to show. Any other exit means stdout is a message.
 fn cmd(rest: &[String]) -> ExitCode {
     let reply = split_marker(&rest.join(" ")).and_then(|(h, request)| {
         let prompt = format!(
@@ -159,17 +164,22 @@ fn cmd(rest: &[String]) -> ExitCode {
         );
         h.run(&prompt, true, Stdio::null())
     });
-    match reply.as_deref().map(widget::decide) {
-        Ok(Decision::Place(command)) => {
-            say!("{command}");
-            ExitCode::SUCCESS
-        }
-        Ok(Decision::Message(text)) => {
-            say!("{text}");
-            ExitCode::FAILURE
-        }
+    match reply {
+        Ok(reply) => match widget::decide(&reply.text) {
+            Decision::Place(command) => {
+                say!("{command}");
+                if !reply.warnings.is_empty() {
+                    say!("{}", reply.warnings);
+                }
+                ExitCode::SUCCESS
+            }
+            Decision::Message(text) => {
+                say!("{text}");
+                ExitCode::FAILURE
+            }
+        },
         Err(e) => {
-            say!("{}", widget::clean(e));
+            say!("{}", widget::clean(&e));
             ExitCode::FAILURE
         }
     }

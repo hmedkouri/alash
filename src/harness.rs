@@ -103,6 +103,25 @@ impl Collected {
     }
 }
 
+/// What a harness answered, and what else it had to say.
+#[derive(Debug)]
+pub struct Reply {
+    pub text: String,
+    /// Warnings the harness wrote on stderr although it succeeded, such as a sign-in about
+    /// to expire. Empty when there were none. Safe to print.
+    pub warnings: String,
+}
+
+/// Whether a line of codex's stderr is a warning or an error, as opposed to its banner.
+/// Its own messages start with the word; its log lines carry the level after a timestamp.
+fn is_notice(line: &str) -> bool {
+    let low = line.trim_start().to_lowercase();
+    low.starts_with("warning")
+        || low.starts_with("error")
+        || line.contains(" WARN ")
+        || line.contains(" ERROR ")
+}
+
 /// The last few distinct lines: codex retries and repeats itself on stderr.
 fn last_lines(said: &str) -> String {
     let mut lines: Vec<&str> = said.lines().filter(|l| !l.trim().is_empty()).collect();
@@ -264,8 +283,38 @@ impl Harness {
             })
     }
 
+    /// What to pass on from the stderr of a call that succeeded.
+    ///
+    /// claude's stderr is quiet, so all of it is a warning. codex writes its banner, the
+    /// prompt, any piped input and the answer there on every call: those are removed by
+    /// exact match, since alash knows what it sent and received, and of the rest only
+    /// lines that are warnings or errors are kept.
+    fn warnings(self, stderr: &str, prompt: &str, answer: &str) -> String {
+        let kept = match self {
+            Harness::Claude => stderr.to_string(),
+            Harness::Codex => {
+                let mut rest = stderr.replace(prompt, "");
+                if let (Some(open), Some(close)) = (rest.find("<stdin>\n"), rest.rfind("</stdin>"))
+                {
+                    if open < close {
+                        rest.replace_range(open..close, "");
+                    }
+                }
+                let answer = answer.trim();
+                if !answer.is_empty() {
+                    rest = rest.replace(answer, "");
+                }
+                rest.lines()
+                    .filter(|l| is_notice(l))
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            }
+        };
+        crate::widget::printable(&last_lines(&kept))
+    }
+
     /// Run the harness and return its answer. `Err` is a complete message for the user.
-    pub fn run(self, prompt: &str, one_turn: bool, stdin: Stdio) -> Result<String, String> {
+    pub fn run(self, prompt: &str, one_turn: bool, stdin: Stdio) -> Result<Reply, String> {
         let missing = self.missing_features()?;
         if !missing.is_empty() {
             return Err(format!(
@@ -327,7 +376,11 @@ impl Harness {
         }
         let stdout = stdout.text();
         if status.success() {
-            return Ok(stdout);
+            let warnings = self.warnings(&stderr.text(), prompt, &stdout);
+            return Ok(Reply {
+                text: stdout,
+                warnings,
+            });
         }
         let said = format!("{stdout}{}", stderr.text());
         let low = said.to_lowercase();
@@ -487,6 +540,37 @@ mod tests {
         assert_eq!(parse_mcp_names("[{\"name\":\"a\",\"transport\":{}}]"), None);
         // A name that would break out of the config key: refuse.
         assert_eq!(parse_mcp_names(&list.replace("off-one", "a.b=1")), None);
+    }
+
+    #[test]
+    fn claude_warnings_are_passed_on_whole() {
+        let w = Harness::Claude.warnings("Warning: this sign-in ends soon.\n", "q", "a");
+        assert_eq!(w, "Warning: this sign-in ends soon.");
+        assert_eq!(Harness::Claude.warnings("", "q", "a"), "");
+        assert_eq!(
+            Harness::Claude.warnings("bad\x1b[2Jtext\n", "q", "a"),
+            "bad?[2Jtext"
+        );
+    }
+
+    #[test]
+    fn codex_warnings_are_picked_out_of_its_banner() {
+        let prompt = "First line.\nwarning: a prompt line that starts like one.";
+        let stderr = format!(
+            "Reading additional input from stdin...\nOpenAI Codex v0.171.0\n--------\n\
+             workdir: /tmp\nmodel: m\n--------\nuser\n{prompt}\n\n<stdin>\n\
+             error: ENOSPC on device\nwarning: disk almost full\n</stdin>\n\
+             2026-11-27T10:00:00.1Z  WARN codex_login: token expires in 2 days\n\
+             warning: Falling back from WebSockets to HTTPS transport.\n\
+             codex\nerror is not the answer\ntokens used\n4,732\n"
+        );
+        assert_eq!(
+            Harness::Codex.warnings(&stderr, prompt, "error is not the answer\n"),
+            "2026-11-27T10:00:00.1Z  WARN codex_login: token expires in 2 days\n\
+             warning: Falling back from WebSockets to HTTPS transport."
+        );
+        let quiet = "OpenAI Codex v0.171.0\n--------\nuser\nhi\ncodex\nOk\ntokens used\n4\n";
+        assert_eq!(Harness::Codex.warnings(quiet, "hi", "Ok\n"), "");
     }
 
     #[test]

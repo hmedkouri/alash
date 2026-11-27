@@ -23,6 +23,7 @@ if [ -n "$FAKE_SLEEP" ]; then
 fi
 printf '%s\n' "$@" > "$FAKE_ARGS"
 echo "base=${ANTHROPIC_BASE_URL-unset}" >> "$FAKE_ARGS"
+[ -n "$FAKE_WARN" ] && printf '%s\n' "$FAKE_WARN" >&2
 printf '%s\n' "$FAKE_REPLY"
 exit "${FAKE_EXIT:-0}"
 "#;
@@ -366,4 +367,58 @@ fn the_doctor_fails_only_when_the_default_harness_cannot_work() {
     let r = alash("doctor-fail", &["ask", "--doctor"], &default_codex);
     assert!(!r.out.status.success());
     assert!(stdout(&r).contains("codex tools        │ ✗ fail │ NOT off"));
+}
+
+const SIGN_IN: &str = "Warning: this sign-in ends between 2026-12-03 and 2026-12-06.";
+
+#[test]
+fn a_warning_from_a_harness_that_succeeds_is_passed_on() {
+    let r = alash("warn", &["ask", "hi"], &[("FAKE_WARN", SIGN_IN)]);
+    assert!(r.out.status.success());
+    assert_eq!(stdout(&r), "ls -la\n", "a pipe receives only the answer");
+    assert_eq!(
+        String::from_utf8_lossy(&r.out.stderr),
+        format!("{SIGN_IN}\n")
+    );
+
+    let r = alash(
+        "warn-why",
+        &["why", "2", "ls /nope"],
+        &[("FAKE_WARN", SIGN_IN)],
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&r.out.stderr),
+        format!("{SIGN_IN}\n")
+    );
+
+    let r = alash("no-warn", &["ask", "hi"], &[]);
+    assert!(r.out.stderr.is_empty());
+}
+
+#[test]
+fn the_key_binding_gets_the_command_first_and_the_warning_after() {
+    let r = alash(
+        "warn-cmd",
+        &["cmd", "list files"],
+        &[("FAKE_WARN", SIGN_IN)],
+    );
+    assert!(r.out.status.success(), "the command is still placed");
+    assert_eq!(stdout(&r), format!("ls -la\n{SIGN_IN}\n"));
+    assert!(r.out.stderr.is_empty());
+}
+
+#[test]
+fn only_codex_lines_that_are_warnings_are_passed_on() {
+    let banner = "OpenAI Codex v0.171.0\n--------\nworkdir: /tmp\n--------\nuser\n\
+                  warning: Falling back from WebSockets to HTTPS transport.\ncodex\ntokens used";
+    let r = alash(
+        "warn-codex",
+        &["ask", "@codex", "hi"],
+        &[("FAKE_WARN", banner)],
+    );
+    assert!(r.out.status.success());
+    assert_eq!(
+        String::from_utf8_lossy(&r.out.stderr),
+        "warning: Falling back from WebSockets to HTTPS transport.\n"
+    );
 }

@@ -22,9 +22,13 @@ pub fn clean(raw: &str) -> String {
         .and_then(|b| b.strip_suffix('`'))
         .filter(|b| !b.contains(['`', '\n']))
         .unwrap_or(body);
-    unwrapped
-        .trim()
-        .chars()
+    printable(unwrapped.trim())
+}
+
+/// Text from another program, made safe to show: control characters other than newline
+/// are replaced, so it cannot drive the terminal.
+pub fn printable(text: &str) -> String {
+    text.chars()
         .map(|c| if c.is_control() && c != '\n' { '?' } else { c })
         .collect()
 }

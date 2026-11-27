@@ -21,14 +21,19 @@ _alash_cmd() {
   zle -R "asking..."
   local out
   if out=$(ALASH_SHELL=zsh command alash cmd "$BUFFER" </dev/null 2>&1); then
+    # First line: the command. Any lines after it: a warning from the harness.
+    local note= msg=
+    [[ $out == *$'\n'* ]] && note=${out#*$'\n'} out=${out%%$'\n'*}
     BUFFER=$out
     CURSOR=${#BUFFER}
     local first=${${(z)out}[1]}
-    if [[ $first == *=* ]] || whence -- "$first" >/dev/null; then
-      zle -M ""
-    else
-      zle -M "not installed: $first"
+    [[ $first == *=* ]] || whence -- "$first" >/dev/null || msg="not installed: $first"
+    # The same warning is shown once per shell session, not at every key press.
+    if [[ -n $note && $note != $_alash_note ]]; then
+      typeset -g _alash_note=$note
+      msg=${msg:+$msg$'\n'}$note
     fi
+    zle -M "$msg"
     zle redisplay
   else
     zle -M "$out"
