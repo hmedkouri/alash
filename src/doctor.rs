@@ -311,7 +311,14 @@ fn check(h: Harness, sev: Status, live: bool, rows: &mut Vec<Row>) {
         )
     } else {
         match h.run("Reply with the single word: ok", true, Stdio::null()) {
-            Ok(reply) => row(trip, Status::Pass, format!("answered ({})", reply.trim())),
+            Ok(reply) if reply.warnings.is_empty() => row(
+                trip,
+                Status::Pass,
+                format!("answered ({})", reply.text.trim()),
+            ),
+            Ok(reply) => {
+                row(trip, Status::Warn, format!("answered, and {name} warned")).fix(reply.warnings)
+            }
             Err(e) => row(trip, sev, "no answer").fix(e),
         }
     });

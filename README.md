@@ -61,6 +61,9 @@ alash needs [Claude Code](https://claude.com/claude-code) or the
 `why` sees the command you ran, not what it printed. To include the output, pipe it:
 `cmd |& ask why does this fail`.
 
+A warning the harness prints, such as a sign-in about to expire, is shown after the
+answer. The key binding shows it once per shell session.
+
 ## Configuration
 
 Environment variables only.

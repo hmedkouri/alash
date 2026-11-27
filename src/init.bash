@@ -22,10 +22,18 @@ _alash_cmd() {
   local out first
   if out=$(ALASH_SHELL=bash command alash cmd "$READLINE_LINE" </dev/null 2>&1); then
     printf '\033[K'
+    # First line: the command. Any lines after it: a warning from the harness.
+    local note=
+    [[ $out == *$'\n'* ]] && note=${out#*$'\n'} out=${out%%$'\n'*}
     READLINE_LINE=$out
     READLINE_POINT=${#out}
     first=${out%%[[:space:]]*}
     [[ $first == *=* ]] || type -t -- "$first" >/dev/null || printf 'not installed: %s\n' "$first"
+    # The same warning is shown once per shell session, not at every key press.
+    if [[ -n $note && $note != "$_alash_note" ]]; then
+      _alash_note=$note
+      printf '%s\n' "$note"
+    fi
   else
     printf '\033[K%s\n' "$out"
   fi
