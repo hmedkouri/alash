@@ -12,6 +12,9 @@ homepage = "https://alash.app"
 readme = "README.md"
 keywords = ["cli", "shell", "claude", "codex", "zsh"]
 categories = ["command-line-utilities"]
+# The crate ships what builds and documents the binary; the site, CI and proof scripts
+# stay in the repository.
+exclude = ["/.github/", "/docs/site/", "/scripts/", "/deny.toml"]
 
 # No dependencies: arguments are free text parsed by hand, and the doctor's base-URL check
 # is a plain TCP connect.

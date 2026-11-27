@@ -1,6 +1,8 @@
 name: Release
 
 # Prebuilt binaries for people who have no Rust toolchain. Triggered by pushing a v* tag.
+# The crates.io `publish` job is added once the crate exists and this workflow is
+# registered there as its trusted publisher: the first version is published by hand.
 on:
   push:
     tags: ["v*"]
@@ -13,8 +15,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+      # A published version cannot be replaced, so a tag that disagrees with the manifest
+      # stops here, before anything is created.
+      - name: Tag matches the manifest version
+        run: test "v$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[0].version')" = "$GITHUB_REF_NAME"
+      # Notes come from the matching CHANGELOG.md section; the release fails without one.
       - uses: taiki-e/create-gh-release-action@v1
         with:
+          changelog: CHANGELOG.md
           token: ${{ secrets.GITHUB_TOKEN }}
 
   upload-assets:
