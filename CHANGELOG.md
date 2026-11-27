@@ -8,6 +8,10 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- `ask --doctor` reports as a table: one row per check with a status of pass, warn, fail
+  or skip, and the fixes listed underneath. The rows are the same on every run, and the
+  result of each check no longer has to be read out of a sentence. Colour is used only
+  on a terminal and never when `NO_COLOR` is set.
 - The crate is published to crates.io by the release workflow through Trusted Publishing,
   so a release no longer needs a token on someone's machine.
 
