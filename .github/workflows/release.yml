@@ -1,8 +1,8 @@
 name: Release
 
 # Prebuilt binaries for people who have no Rust toolchain. Triggered by pushing a v* tag.
-# The crates.io `publish` job is added once the crate exists and this workflow is
-# registered there as its trusted publisher: the first version is published by hand.
+# The last job publishes the crate to crates.io through Trusted Publishing: this workflow
+# is registered on the crate's settings page, so no token is stored anywhere.
 on:
   push:
     tags: ["v*"]
@@ -68,3 +68,20 @@ jobs:
       - run: gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft=false
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # After the GitHub release, so a version never reaches crates.io without its binaries.
+  # crates.io gives a short-lived token to this workflow only; see the header.
+  publish-crate:
+    needs: publish-release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - id: auth
+        uses: rust-lang/crates-io-auth-action@v1
+      - run: cargo publish
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
