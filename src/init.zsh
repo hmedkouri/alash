@@ -1,7 +1,10 @@
 # alash shell integration for zsh. Load with: eval "$(alash init zsh)"
 # Only what a child process cannot do lives here: the previous command, the exit status
 # and the command line. Everything else is in the alash binary.
-ask() {
+#
+# `function name {` and not `name() {`: the aliases at the end are named ask and why, and
+# on a second eval in the same shell `ask() {` would be expanded through the alias.
+function ask {
   if [[ $1 == --doctor ]]; then
     # Evidence for the doctor: is `why` still ours, and is the key still bound to our widget?
     # ALASH_INIT is the alash version that printed this code, so the doctor can tell a
@@ -14,7 +17,7 @@ ask() {
     ALASH_SHELL=zsh command alash ask "$@"
   fi
 }
-why() { local s=$?; ALASH_SHELL=zsh command alash why "$s" "$(fc -ln -1)" "$@" </dev/null }
+function why { local s=$?; ALASH_SHELL=zsh command alash why "$s" "$(fc -ln -1)" "$@" </dev/null }
 _alash_cmd() {
   if [[ -z ${BUFFER//[[:space:]]/} ]]; then
     zle -M "Type what the command should do, then Ctrl-X Ctrl-A."
@@ -43,6 +46,9 @@ _alash_cmd() {
     zle -M "$out"
   fi
 }
+# A question ends in a question mark. Without noglob zsh reads `?`, `*` and `[...]` as
+# filename patterns and refuses to run the command when nothing matches.
+alias ask='noglob ask' why='noglob why'
 if [[ -o interactive ]]; then
   zle -N _alash_cmd
   bindkey '^X^A' _alash_cmd

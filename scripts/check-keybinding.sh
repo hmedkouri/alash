@@ -1,5 +1,5 @@
 #!/bin/sh
-# Presses the key binding in a real terminal and checks what is left on screen.
+# Uses the shell integration in a real terminal and checks what is left on screen.
 #
 # The fake-harness tests see the bytes alash and the shell write, not where they land.
 # That let a wrong redraw ship: the prompt moved up a row and the "not installed" message
@@ -57,6 +57,30 @@ expect() {
   done
   echo "ok: $what"
 }
+
+# typed <setup typed before the line> <line>: the terminal after a line typed in zsh
+typed() {
+  t="tmux -L alash-check -f /dev/null"
+  $t kill-server 2>/dev/null || true
+  $t new-session -d -x 90 -y 20 \
+    "env -i HOME=$work TERM=xterm-256color PATH=$work:$bin:/usr/bin:/bin KB_REPLY='the answer' PS1='> ' zsh -f -i"
+  sleep 0.6
+  $t send-keys "unsetopt PROMPT_SP; eval \"\$(alash init zsh)\"; $1 clear" Enter
+  sleep 0.6
+  $t send-keys -l "$2"
+  $t send-keys Enter
+  sleep 1.5
+  $t capture-pane -p
+  $t kill-server
+}
+
+# zsh reads `?` as a filename pattern; the integration must stop that for questions.
+expect "zsh passes a question ending in ? to alash" \
+  "$(typed '' 'ask is this a question?')" "the answer"
+expect "zsh still does after the init code is evaluated twice" \
+  "$(typed 'eval "$(alash init zsh)";' 'ask is [this] a question?')" "the answer"
+expect "zsh passes a piped question ending in ?" \
+  "$(typed '' 'echo data | ask what is this?')" "the answer"
 
 for sh in zsh bash; do
   expect "$sh places the command and leaves earlier output alone" \

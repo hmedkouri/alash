@@ -6,6 +6,12 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- In zsh, a question ending in a question mark reaches alash. zsh read `?`, `*` and
+  `[...]` in the question as filename patterns and stopped with "no matches found" before
+  `ask` ran; `ask` and `why` now take their words as typed.
+
 ## [0.2.3] - 2026-11-27
 
 ### Fixed
