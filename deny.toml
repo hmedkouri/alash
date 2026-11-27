@@ -1,7 +1,8 @@
 # Policy for `cargo deny check bans advisories sources`.
 #
-# alash has no dependencies and makes no network request of its own: the harness it
-# starts does. The bans below make adding a network or async crate a deliberate, visible
+# alash has no dependencies. Its one network request, the doctor's version check, is made
+# by running curl; everything else on the network is done by the harness it starts. The
+# bans below make adding a network or async crate a deliberate, visible
 # act. If a real need appears, delete the line and say why in the commit message.
 #
 # The licence check is not run: an allow-list is maintenance for a risk a crate with no

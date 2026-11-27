@@ -134,6 +134,9 @@ tar: missing.tar: Cannot open: No such file or directory
       as a message. It warns when the first word is not an installed command.</li>
     <li><strong>Capture or log.</strong> It sends your question, what you pipe in, the previous command line
       for <code>why</code>, and the typed text for the key binding. It writes nothing to disk.</li>
+    <li><strong>Call home.</strong> <code>ask</code>, <code>why</code> and the key binding make no network request of their own.
+      The one exception is <code>ask --doctor</code>, which asks github.com for the latest release by
+      running <code>curl</code>; <code>ALASH_NO_UPDATE_CHECK=1</code> switches that off.</li>
   </ul>
 
   <h2>Limits</h2>

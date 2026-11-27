@@ -55,7 +55,7 @@ alash needs [Claude Code](https://claude.com/claude-code) or the
 | `why` | Explains why the previous command failed, from its command line and exit status. |
 | `why @codex` | The same, with codex. |
 | Ctrl-X Ctrl-A | Turns the text on the command line into one command. Start the text with `@codex` to use codex. |
-| `ask --doctor` | Checks each harness, whether its tools are off, whether `why` and the key binding are still alash's, and the base URL. |
+| `ask --doctor` | Checks each harness, whether its tools are off, whether `why` and the key binding are still alash's, the base URL, and whether a newer alash exists. |
 | `ask --doctor --live` | Also sends one real request per harness. |
 
 `why` sees the command you ran, not what it printed. To include the output, pipe it:
@@ -74,6 +74,7 @@ Environment variables only.
 | `ALASH_CODEX_MODEL` | codex model | codex's own default |
 | `ALASH_HARNESS` | harness used without a marker: `claude` or `codex` | `claude` |
 | `ALASH_BASE_URL` | base URL for claude, such as a local proxy | not set |
+| `ALASH_NO_UPDATE_CHECK` | set to `1` to stop `ask --doctor` asking GitHub for the latest version | not set |
 | `ALASH_TIMEOUT` | seconds a harness may take before alash stops it | 60, and 30 for the key binding |
 
 ## What it will not do
@@ -86,6 +87,9 @@ Environment variables only.
   as a message. It warns when the first word is not an installed command.
 - **Capture or log.** It sends your question, what you pipe in, the previous command line
   for `why`, and the typed text for the key binding. It writes nothing to disk.
+- **Call home.** `ask`, `why` and the key binding make no network request of their own.
+  The one exception is `ask --doctor`, which asks github.com for the latest release by
+  running `curl`; `ALASH_NO_UPDATE_CHECK=1` switches that off.
 
 ## Limits
 

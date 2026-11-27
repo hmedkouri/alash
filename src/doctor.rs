@@ -4,9 +4,10 @@
 //! until every check has run.
 
 use crate::harness::{base_url, url_answers, Harness};
-use std::io::IsTerminal;
+use std::io::{IsTerminal, Read};
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
+use std::time::{Duration, Instant};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Status {
@@ -215,6 +216,87 @@ fn codex_global_instructions() -> Option<PathBuf> {
     file.exists().then_some(file)
 }
 
+/// Redirects to `/releases/tag/vX.Y.Z`, so the latest version is in the address: no JSON
+/// to parse and no API rate limit.
+const LATEST: &str = "https://github.com/hmedkouri/alash/releases/latest";
+
+/// `1.2.3` as numbers, so 0.10.0 is newer than 0.9.0. None for anything else, which
+/// includes a pre-release: one is never offered.
+fn parse_version(v: &str) -> Option<[u64; 3]> {
+    let mut parts = v.trim().split('.').map(|p| p.parse::<u64>().ok());
+    let version = [parts.next()??, parts.next()??, parts.next()??];
+    parts.next().is_none().then_some(version)
+}
+
+/// The latest released version, asked of GitHub by running `curl`: the standard library
+/// cannot speak HTTPS and alash takes no dependency for it. This is the only network
+/// request alash makes itself, and only the doctor makes it. None when curl is missing,
+/// fails, or takes longer than a few seconds.
+fn latest_release() -> Option<String> {
+    let sink = if cfg!(windows) { "NUL" } else { "/dev/null" };
+    let mut child = Command::new("curl")
+        .args(["-s", "-o", sink, "-m", "5", "-w", "%{redirect_url}", LATEST])
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .ok()?;
+    let started = Instant::now();
+    let status = loop {
+        match child.try_wait().ok()? {
+            Some(status) => break status,
+            None if started.elapsed() > Duration::from_secs(6) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return None;
+            }
+            None => std::thread::sleep(Duration::from_millis(25)),
+        }
+    };
+    let mut url = String::new();
+    child.stdout.take()?.read_to_string(&mut url).ok()?;
+    let tag = url.trim().rsplit('/').next()?.strip_prefix('v')?;
+    (status.success() && parse_version(tag).is_some()).then(|| tag.to_string())
+}
+
+/// The `version` row, from the running version and what `latest_release` returned.
+fn version_row(running: &str, checked: bool, latest: Option<&str>) -> Row {
+    if !checked {
+        return row(
+            "version",
+            Status::Skip,
+            format!("{running}; check switched off by ALASH_NO_UPDATE_CHECK"),
+        );
+    }
+    let Some(latest) = latest else {
+        return row(
+            "version",
+            Status::Skip,
+            format!("{running}; the latest release could not be checked (no curl, or no answer from github.com)"),
+        );
+    };
+    match (parse_version(running), parse_version(latest)) {
+        (Some(mine), Some(theirs)) if theirs > mine => row(
+            "version",
+            Status::Warn,
+            format!("{running}; {latest} is available"),
+        )
+        .fix(format!(
+            "update with `cargo install alash`, or download {latest} from {LATEST}"
+        )),
+        (Some(mine), Some(theirs)) if mine > theirs => row(
+            "version",
+            Status::Pass,
+            format!("{running}, newer than the latest release {latest}"),
+        ),
+        _ => row(
+            "version",
+            Status::Pass,
+            format!("{running} is the latest release"),
+        ),
+    }
+}
+
 /// The rows for one harness. `sev` is Fail for the default harness and Warn for another:
 /// only the default one decides the exit status.
 fn check(h: Harness, sev: Status, live: bool, rows: &mut Vec<Row>) {
@@ -327,6 +409,13 @@ fn check(h: Harness, sev: Status, live: bool, rows: &mut Vec<Row>) {
 /// Runs every check. The rows are the same ones, in the same order, on every run.
 fn rows(default: Option<Harness>, live: bool) -> Vec<Row> {
     let mut rows = Vec::new();
+    let checked = std::env::var_os("ALASH_NO_UPDATE_CHECK").is_none_or(|v| v.is_empty());
+    let latest = if checked { latest_release() } else { None };
+    rows.push(version_row(
+        env!("CARGO_PKG_VERSION"),
+        checked,
+        latest.as_deref(),
+    ));
     // The `ask` function reports what it found in the calling shell. Only that is
     // repeated here: this process cannot see the shell's functions or key bindings.
     let found = |var: &str| std::env::var(var).ok().map(|v| v == "1");
@@ -445,6 +534,37 @@ mod tests {
             row("codex", Status::Fail, "not on the PATH").fix("install codex"),
             row("base URL", Status::Skip, "not set"),
         ]
+    }
+
+    #[test]
+    fn versions_compare_as_numbers() {
+        assert!(parse_version("0.10.0") > parse_version("0.9.0"));
+        assert_eq!(parse_version("1.2.3"), Some([1, 2, 3]));
+        for bad in ["", "1.2", "1.2.3.4", "1.2.3-rc1", "v1.2.3", "a.b.c"] {
+            assert_eq!(parse_version(bad), None, "{bad}");
+        }
+    }
+
+    #[test]
+    fn the_version_row_says_what_was_found() {
+        let r = version_row("0.1.1", true, Some("0.2.0"));
+        assert_eq!(
+            (r.status, r.summary.as_str()),
+            (Status::Warn, "0.1.1; 0.2.0 is available")
+        );
+        assert!(r.fix.unwrap().contains("cargo install alash"));
+        let r = version_row("0.9.0", true, Some("0.10.0"));
+        assert_eq!(r.status, Status::Warn, "0.10.0 is newer than 0.9.0");
+        assert_eq!(
+            version_row("0.1.1", true, Some("0.1.1")).status,
+            Status::Pass
+        );
+        assert_eq!(
+            version_row("0.2.0", true, Some("0.1.1")).status,
+            Status::Pass
+        );
+        assert_eq!(version_row("0.1.1", true, None).status, Status::Skip);
+        assert_eq!(version_row("0.1.1", false, None).status, Status::Skip);
     }
 
     #[test]

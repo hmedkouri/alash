@@ -28,6 +28,14 @@ printf '%s\n' "$FAKE_REPLY"
 exit "${FAKE_EXIT:-0}"
 "#;
 
+/// Stands in for curl, so no test reaches the network. Prints what `-w %{redirect_url}`
+/// would: the address GitHub redirects the latest release to.
+const FAKE_CURL: &str = r#"#!/bin/sh
+[ -n "$FAKE_CURL_SLEEP" ] && exec sleep "$FAKE_CURL_SLEEP"
+printf '%s' "$FAKE_LATEST"
+exit "${FAKE_CURL_EXIT:-0}"
+"#;
+
 const ALL_FEATURES: &str = "shell_tool unified_exec view_image goals multi_agent apps plugins";
 
 const MCP_LIST: &str = "[\n  {\n    \"name\": \"probe\",\n    \"enabled\": true,\n    \"transport\": {\n      \"type\": \"stdio\"\n    }\n  },\n  {\n    \"name\": \"remote_x\",\n    \"enabled\": true,\n    \"transport\": {\n      \"type\": \"streamable_http\"\n    }\n  }\n]\n";
@@ -46,6 +54,9 @@ fn alash(test: &str, args: &[&str], env: &[(&str, &str)]) -> Run {
         fs::write(&path, FAKE).unwrap();
         fs::set_permissions(&path, fs::Permissions::from_mode(0o755)).unwrap();
     }
+    let curl = dir.join("curl");
+    fs::write(&curl, FAKE_CURL).unwrap();
+    fs::set_permissions(&curl, fs::Permissions::from_mode(0o755)).unwrap();
     let record = dir.join("args");
     let out = Command::new(env!("CARGO_BIN_EXE_alash"))
         .args(args)
@@ -333,6 +344,7 @@ fn the_doctor_reports_every_check_as_a_table_row() {
     assert!(out.starts_with("alash doctor v"), "{out}");
     assert!(!out.contains('\x1b'), "piped output has no colour codes");
     for check in [
+        "version",
         "shell",
         "why",
         "key binding",
@@ -421,4 +433,54 @@ fn only_codex_lines_that_are_warnings_are_passed_on() {
         String::from_utf8_lossy(&r.out.stderr),
         "warning: Falling back from WebSockets to HTTPS transport.\n"
     );
+}
+
+const TAG: &str = "https://github.com/hmedkouri/alash/releases/tag/v";
+
+#[test]
+fn the_doctor_reports_a_newer_release() {
+    let newer = format!("{TAG}999.0.0");
+    let env = [("FAKE_REPLY", ALL_FLAGS), ("FAKE_LATEST", newer.as_str())];
+    let r = alash("version-new", &["ask", "--doctor"], &env);
+    let out = stdout(&r);
+    assert!(
+        r.out.status.success(),
+        "a newer release is a warning, not a failure"
+    );
+    assert!(out.contains("│ version            │ ⚠ warn │"), "{out}");
+    assert!(out.contains("999.0.0 is available"));
+    assert!(out.contains("version: update with `cargo install alash`"));
+
+    let same = format!("{TAG}{}", env!("CARGO_PKG_VERSION"));
+    let env = [("FAKE_REPLY", ALL_FLAGS), ("FAKE_LATEST", same.as_str())];
+    let r = alash("version-same", &["ask", "--doctor"], &env);
+    assert!(stdout(&r).contains("│ version            │ ✓ pass │"));
+    assert!(stdout(&r).contains("is the latest release"));
+}
+
+#[test]
+fn the_doctor_survives_a_version_check_that_cannot_be_made() {
+    let failing = [("FAKE_REPLY", ALL_FLAGS), ("FAKE_CURL_EXIT", "6")];
+    let r = alash("version-fail", &["ask", "--doctor"], &failing);
+    assert!(r.out.status.success());
+    assert!(stdout(&r).contains("│ version            │ · skip │"));
+    assert!(stdout(&r).contains("could not be checked"));
+
+    let started = std::time::Instant::now();
+    let hanging = [("FAKE_REPLY", ALL_FLAGS), ("FAKE_CURL_SLEEP", "60")];
+    let r = alash("version-hang", &["ask", "--doctor"], &hanging);
+    assert!(
+        started.elapsed().as_secs() < 15,
+        "the doctor must not wait for curl"
+    );
+    assert!(r.out.status.success());
+    assert!(stdout(&r).contains("could not be checked"));
+
+    let off = [
+        ("FAKE_REPLY", ALL_FLAGS),
+        ("ALASH_NO_UPDATE_CHECK", "1"),
+        ("FAKE_LATEST", "x/v9.9.9"),
+    ];
+    let r = alash("version-off", &["ask", "--doctor"], &off);
+    assert!(stdout(&r).contains("check switched off by ALASH_NO_UPDATE_CHECK"));
 }
