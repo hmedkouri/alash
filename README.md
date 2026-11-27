@@ -67,6 +67,7 @@ Environment variables only.
 | `ALASH_CODEX_MODEL` | codex model | codex's own default |
 | `ALASH_HARNESS` | harness used without a marker: `claude` or `codex` | `claude` |
 | `ALASH_BASE_URL` | base URL for claude, such as a local proxy | not set |
+| `ALASH_TIMEOUT` | seconds a harness may take before alash stops it | 60, and 30 for the key binding |
 
 ## What it will not do
 
@@ -83,7 +84,8 @@ Environment variables only.
 
 - **codex keeps your `~/.codex/config.toml`**, so your model provider and login are
   used. Its MCP servers are switched off by name for each call; if alash cannot read the
-  list of servers, it refuses to run codex.
+  list of servers, it refuses to run codex. A broken provider or an expired login in that
+  file shows up as a timeout, with codex's last lines printed above it.
 - **A model may still talk as if it had tools.** Asked to change something, it can
   answer "Done" or print a tool call as text. Nothing was changed: alash never lets it.
   Every `ask` and `why` question tells the model it has no tools, which stopped both

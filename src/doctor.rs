@@ -188,7 +188,10 @@ pub fn run(live: bool) -> bool {
         }
     }
     if !live {
-        say!("No request was sent. `ask --doctor --live` sends one per harness.");
+        say!(
+            "No request was sent, so login and network were not checked. `ask --doctor --live` \
+             sends one request per harness."
+        );
     }
     default_ok
 }

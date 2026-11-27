@@ -6,7 +6,18 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- `ALASH_TIMEOUT`: seconds a harness may take. The default is 60, and 30 for the key
+  binding, where a frozen prompt is worse than a slow answer.
+
 ### Fixed
+
+- A harness that never exits no longer makes `ask`, `why` or the key binding hang. codex
+  retries without end when its provider is unreachable; alash now stops the harness at the
+  time limit, prints the last lines it wrote, and exits non-zero.
+- Stopping alash (Ctrl-C, hangup, `kill`) stops the harness too. It used to be left
+  running.
 
 - Release binaries are attached again. The repository has immutable releases on, so the
   `v0.1.0` release was locked before its archives could be uploaded and has none. The

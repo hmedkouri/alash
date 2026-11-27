@@ -36,7 +36,8 @@ Environment:
   ASK_MODEL           claude model (default: haiku)
   ALASH_CODEX_MODEL   codex model (default: codex's own)
   ALASH_HARNESS       default harness: claude or codex
-  ALASH_BASE_URL      optional base URL for claude, such as a local proxy";
+  ALASH_BASE_URL      optional base URL for claude, such as a local proxy
+  ALASH_TIMEOUT       seconds a harness may take (default: 60, key binding 30)";
 
 /// Put before every `ask` and `why` question. With its tools off a model may still answer
 /// "Done" or print a tool call as text; this tells it what it can do. See docs/tools-off.md.
