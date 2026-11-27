@@ -31,7 +31,7 @@ alash needs [Claude Code](https://claude.com/claude-code) or the
 1. Get the binary (needs Rust's cargo):
 
    ```sh
-   cargo install --git https://github.com/hmedkouri/alash
+   cargo install alash
    ```
 2. Add one line to `~/.zshrc` or `~/.bashrc`:
 
