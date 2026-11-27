@@ -6,6 +6,18 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- `ask --doctor` runs its slow checks side by side, so it takes as long as the slowest one
+  and not the sum. With `--live`, a harness that hangs no longer adds its whole time limit
+  on top of the other harness's round trip.
+
+### Fixed
+
+- What a failing or hanging codex said is readable. Its log lines carry hundreds of
+  characters of tracing context; alash now drops the INFO lines, keeps the level and the
+  message of a WARN or ERROR line, and cuts any line at 300 characters.
+
 ## [0.2.0] - 2026-11-27
 
 ### Added

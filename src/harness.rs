@@ -122,9 +122,41 @@ fn is_notice(line: &str) -> bool {
         || line.contains(" ERROR ")
 }
 
-/// The last few distinct lines: codex retries and repeats itself on stderr.
+/// One line of a harness's stderr, made fit to show, or None for a line nobody needs.
+///
+/// codex logs through `tracing`: `<timestamp>  WARN span{..}:span{..}: target: message`.
+/// The spans run to hundreds of characters and the INFO lines are request bookkeeping, so
+/// INFO, DEBUG and TRACE lines are dropped and a WARN or ERROR line keeps its level and
+/// what follows the spans. Any line is cut at 300 characters.
+fn tidy(line: &str) -> Option<String> {
+    let mut words = line.split_whitespace();
+    let stamped = words
+        .next()
+        .is_some_and(|w| w.starts_with(|c: char| c.is_ascii_digit()) && w.contains('T'));
+    let line = match (stamped, words.next()) {
+        (true, Some("INFO" | "DEBUG" | "TRACE")) => return None,
+        (true, Some(level @ ("WARN" | "ERROR"))) => {
+            let after_level = line.split_once(level).map_or(line, |(_, rest)| rest);
+            let message = after_level
+                .rsplit_once("}: ")
+                .map_or(after_level, |(_, m)| m);
+            format!("{level} {}", message.trim())
+        }
+        _ => line.trim_end().to_string(),
+    };
+    if line.trim().is_empty() {
+        return None;
+    }
+    Some(if line.chars().count() > 300 {
+        format!("{}…", line.chars().take(300).collect::<String>())
+    } else {
+        line
+    })
+}
+
+/// The last few distinct lines worth showing: codex retries and repeats itself on stderr.
 fn last_lines(said: &str) -> String {
-    let mut lines: Vec<&str> = said.lines().filter(|l| !l.trim().is_empty()).collect();
+    let mut lines: Vec<String> = said.lines().filter_map(tidy).collect();
     lines.dedup();
     lines[lines.len().saturating_sub(4)..].join("\n")
 }
@@ -354,9 +386,9 @@ impl Harness {
                 // A harness that cannot reach its provider retries without end. What it
                 // said so far is the only clue, so it goes first.
                 return Err(format!(
-                    "{}\n{} did not answer within {} s, so alash stopped it. Check its login \
-                     and network with `ask --doctor --live`. ALASH_TIMEOUT=<seconds> changes \
-                     the limit.",
+                    "{}\n{} did not answer within {} s, so alash stopped it. Its last lines are \
+                     above; check its login and network. ALASH_TIMEOUT=<seconds> changes the \
+                     limit.",
                     last_lines(&stderr.text()),
                     self.name(),
                     limit.as_secs()
@@ -566,11 +598,35 @@ mod tests {
         );
         assert_eq!(
             Harness::Codex.warnings(&stderr, prompt, "error is not the answer\n"),
-            "2026-11-27T10:00:00.1Z  WARN codex_login: token expires in 2 days\n\
+            "WARN codex_login: token expires in 2 days\n\
              warning: Falling back from WebSockets to HTTPS transport."
         );
         let quiet = "OpenAI Codex v0.171.0\n--------\nuser\nhi\ncodex\nOk\ntokens used\n4\n";
         assert_eq!(Harness::Codex.warnings(quiet, "hi", "Ok\n"), "");
+    }
+
+    #[test]
+    fn codex_log_lines_are_cut_down_to_what_matters() {
+        // As printed by codex-cli 0.171.0 when it cannot reach its provider.
+        let said = "\
+2026-11-27T11:57:04.440341Z  INFO session_loop{thread_id=01a2}:turn{model=m}: codex_otel.trace_safe: event.name=\"codex.api_request\" duration_ms=0 error.message=\"error sending request\" attempt=4
+2026-11-27T11:57:04.440442Z  WARN session_loop{thread_id=01a2}:turn{otel.name=\"session_task.turn\" model=m}: codex_core::responses_retry: stream connection failed; waiting to retry error=Connection failed: error sending request retry_delay=10s
+ERROR: Reconnecting... waiting for network
+ERROR: Reconnecting... waiting for network
+";
+        assert_eq!(
+            last_lines(said),
+            "WARN codex_core::responses_retry: stream connection failed; waiting to retry \
+             error=Connection failed: error sending request retry_delay=10s\n\
+             ERROR: Reconnecting... waiting for network"
+        );
+        let long = format!("Warning: {}", "x".repeat(400));
+        assert_eq!(last_lines(&long).chars().count(), 301);
+        assert_eq!(last_lines("plain line\n\n  \n"), "plain line");
+        assert_eq!(
+            last_lines("2026 was a year\nTuesday INFO is fine"),
+            "2026 was a year\nTuesday INFO is fine"
+        );
     }
 
     #[test]

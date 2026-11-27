@@ -299,7 +299,8 @@ fn version_row(running: &str, checked: bool, latest: Option<&str>) -> Row {
 
 /// The rows for one harness. `sev` is Fail for the default harness and Warn for another:
 /// only the default one decides the exit status.
-fn check(h: Harness, sev: Status, live: bool, rows: &mut Vec<Row>) {
+fn check(h: Harness, sev: Status, live: bool) -> Vec<Row> {
+    let mut rows = Vec::new();
     let name = h.name();
     let tools = format!("{name} tools");
     let trip = format!("{name} round trip");
@@ -309,7 +310,7 @@ fn check(h: Harness, sev: Status, live: bool, rows: &mut Vec<Row>) {
         )));
         rows.push(row(tools, Status::Skip, format!("{name} was not found")));
         rows.push(row(trip, Status::Skip, format!("{name} was not found")));
-        return;
+        return rows;
     };
     let version = version
         .trim()
@@ -404,18 +405,56 @@ fn check(h: Harness, sev: Status, live: bool, rows: &mut Vec<Row>) {
             Err(e) => row(trip, sev, "no answer").fix(e),
         }
     });
+    rows
 }
 
 /// Runs every check. The rows are the same ones, in the same order, on every run.
 fn rows(default: Option<Harness>, live: bool) -> Vec<Row> {
-    let mut rows = Vec::new();
-    let checked = std::env::var_os("ALASH_NO_UPDATE_CHECK").is_none_or(|v| v.is_empty());
-    let latest = if checked { latest_release() } else { None };
-    rows.push(version_row(
-        env!("CARGO_PKG_VERSION"),
-        checked,
-        latest.as_deref(),
-    ));
+    // The slow checks wait on other programs and the network, so they run side by side:
+    // the doctor takes as long as the slowest one, not the sum. The rows are still put
+    // together in a fixed order.
+    let severity = |h: Harness| {
+        if default == Some(h) {
+            Status::Fail
+        } else {
+            Status::Warn
+        }
+    };
+    let (version, harnesses, base) = std::thread::scope(|scope| {
+        let version = scope.spawn(|| {
+            let checked = std::env::var_os("ALASH_NO_UPDATE_CHECK").is_none_or(|v| v.is_empty());
+            let latest = if checked { latest_release() } else { None };
+            version_row(env!("CARGO_PKG_VERSION"), checked, latest.as_deref())
+        });
+        let harnesses: Vec<_> = Harness::ALL
+            .into_iter()
+            .map(|h| scope.spawn(move || check(h, severity(h), live)))
+            .collect();
+        let base = scope.spawn(|| match base_url() {
+            None => row("base URL", Status::Skip, "not set"),
+            Some(url) if url_answers(&url) => row(
+                "base URL",
+                Status::Pass,
+                format!("{url} answers (used for claude only)"),
+            ),
+            Some(url) => row(
+                "base URL",
+                severity(Harness::Claude),
+                format!("{url} does not answer"),
+            )
+            .fix("start that proxy, or unset ALASH_BASE_URL to call Anthropic directly"),
+        });
+        let panicked = "a doctor check panicked";
+        (
+            version.join().expect(panicked),
+            harnesses
+                .into_iter()
+                .flat_map(|h| h.join().expect(panicked))
+                .collect::<Vec<Row>>(),
+            base.join().expect(panicked),
+        )
+    });
+    let mut rows = vec![version];
     // The `ask` function reports what it found in the calling shell. Only that is
     // repeated here: this process cannot see the shell's functions or key bindings.
     let found = |var: &str| std::env::var(var).ok().map(|v| v == "1");
@@ -465,31 +504,8 @@ fn rows(default: Option<Harness>, live: bool) -> Vec<Row> {
             rows.push(row("key binding", Status::Skip, why));
         }
     }
-    for h in Harness::ALL {
-        let sev = if default == Some(h) {
-            Status::Fail
-        } else {
-            Status::Warn
-        };
-        check(h, sev, live, &mut rows);
-    }
-    rows.push(match base_url() {
-        None => row("base URL", Status::Skip, "not set"),
-        Some(url) if url_answers(&url) => row(
-            "base URL",
-            Status::Pass,
-            format!("{url} answers (used for claude only)"),
-        ),
-        Some(url) => {
-            let sev = if default == Some(Harness::Claude) {
-                Status::Fail
-            } else {
-                Status::Warn
-            };
-            row("base URL", sev, format!("{url} does not answer"))
-                .fix("start that proxy, or unset ALASH_BASE_URL to call Anthropic directly")
-        }
-    });
+    rows.extend(harnesses);
+    rows.push(base);
     rows
 }
 
